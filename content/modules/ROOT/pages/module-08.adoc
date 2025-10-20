@@ -16,7 +16,7 @@ For this section of the lab, we'll focus on creating a boot ISO that includes th
 To create the ISO with an embedded kickstart, we will use `bootc-image-builder`. Make sure you have the bootc image to be installed available in system storage.
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo podman images {registry_hostname}/httpd
+sudo podman images registry-{guid}.{domain}/httpd
 ----
 
 [#kickstart]
@@ -92,10 +92,10 @@ sudo podman run --rm --privileged \
   --volume .:/output \
   --volume ./config-iso.toml:/config.toml \
   --volume /var/lib/containers/storage:/var/lib/containers/storage \
-  registry.redhat.io/rhel9/bootc-image-builder:9.5 \
+  registry.redhat.io/rhel9/bootc-image-builder:9.6 \
   --type anaconda-iso \
   --local \
-  {registry_hostname}/httpd
+  registry-{guid}.{domain}/httpd
 ----
 For this output type there are two stages, `bootc-image-builder` will first create the ISO image from the same source repos as the container it's passed. This ensures we get matching versions on the installer and the image to be installed regardless of the host's OS version, eg a RHEL 10 ISO for a RHEL 10 image.
 
@@ -151,7 +151,7 @@ virt-install --connect qemu:///system \
 Once the initial boot is complete, you'll get to see anaconda at work. At various points you'll see output like below, showing anaconda reading the kickstart, and calling `bootc` to deploy the image to the disk layout it created.
 ....
 Starting installer, one moment...
-anaconda 34.25.5.9-1.el9 for Red Hat Enterprise Linux 9.5 started.
+anaconda 34.25.5.9-1.el9 for Red Hat Enterprise Linux 9.6 started.
 
 Starting automated install.Saving storage configuration...
 
@@ -255,14 +255,14 @@ We need to be sure to use `sudo` to copy into the system storage location and no
 
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo skopeo copy docker://{registry_hostname}/httpd  containers-storage:{registry_hostname}/httpd
+sudo skopeo copy docker://registry-{guid}.{domain}/httpd  containers-storage:registry-{guid}.{domain}/httpd
 ----
 
 Switch our installation to use the new container image, using the `--transport` flag to let bootc know we want to use local container storage for update tracking.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo bootc switch --transport containers-storage {registry_hostname}/httpd
+sudo bootc switch --transport containers-storage registry-{guid}.{domain}/httpd
 ----
 ....
 Fetched layers: 0 B in 15 seconds (0 B/s)                                                      

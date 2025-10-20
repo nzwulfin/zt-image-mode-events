@@ -100,7 +100,7 @@ to where we put content and how we serve it in Apache.
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry.redhat.io/rhel9/rhel-bootc:9.5
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
 RUN dnf install -y httpd
 
@@ -135,14 +135,14 @@ existing layers if there are no changes. This makes updates faster and take less
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile --tag {registry_hostname}/httpd
+podman build --file Containerfile --tag registry-{guid}.{domain}/httpd
 ----
 
 And make sure to push it to the registry:
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/httpd
+podman push registry-{guid}.{domain}/httpd
 ----
 [#update2-vm]
 == Updating the virtual machine

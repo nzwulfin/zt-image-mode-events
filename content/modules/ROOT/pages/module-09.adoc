@@ -46,7 +46,7 @@ The `id` is the connection between the `RUN` directive in the Containerfile and 
 You can now edit the `Containerfile` to match the following. 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry.redhat.io/rhel9/rhel-bootc:9.5
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
 RUN dnf install -y httpd
 
@@ -81,14 +81,14 @@ We're also going to use a new tag for this image, like we did in the previous `b
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --secret id=SSHPUBKEY,src=.ssh/{guid}key.pub --file Containerfile --tag {registry_hostname}/httpd:auth
+podman build --secret id=SSHPUBKEY,src=.ssh/{guid}key.pub --file Containerfile --tag registry-{guid}.{domain}/httpd:auth
 ----
 
 And make sure to push it to the registry:
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/httpd:auth
+podman push registry-{guid}.{domain}/httpd:auth
 ----
 
 [#switch-creds]
@@ -114,7 +114,7 @@ We can change to our new image with the embedded `root` credentials
 
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo bootc switch {registry_hostname}/httpd:auth
+sudo bootc switch registry-{guid}.{domain}/httpd:auth
 ----
 ----
 layers already present: 69; layers needed: 5 (7.2 kB)

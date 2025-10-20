@@ -22,7 +22,7 @@ nano Containerfile.wp
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM {registry_hostname}/httpd
+FROM registry-{guid}.{domain}/httpd
 
 RUN dnf -y install lynx
 
@@ -58,13 +58,13 @@ When we build this image, we will use a new name to denote it's new purpose. You
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile.wp --tag {registry_hostname}/caddy-wp
+podman build --file Containerfile.wp --tag registry-{guid}.{domain}/caddy-wp
 ----
 And of course push it to the local registry:
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/caddy-wp
+podman push registry-{guid}.{domain}/caddy-wp
 ----
 
 Notice that even though we used a new tag for this image, the push still used cached layers. This is an advantage of stacking images in a standard build design.
@@ -83,7 +83,7 @@ After the new container image has been pushed to the local registry, you can `sw
 
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo bootc switch {registry_hostname}/caddy-wp
+sudo bootc switch registry-{guid}.{domain}/caddy-wp
 ----
 
 From a status perspective, a switch looks the same as an update. There's a new deployment that's been staged and prepared for the next boot, but the image reference is completely different.
@@ -94,7 +94,7 @@ sudo bootc status
 ....
   Staged image: node.prk8w.gcp.redhatworkshops.io/caddy-wp
         Digest: sha256:f139ae15566be551658c239eaadbdbc9ff3db72338cf41a7c85e5574903dad86
-       Version: 9.6 (2025-05-15 14:16:09.529889448 UTC)
+       Version: 9.6 (2025-05-15 14:16:09.629889448 UTC)
 
 ● Booted image: node.prk8w.gcp.redhatworkshops.io/httpd:10.0
         Digest: sha256:5411c8f3d00f20ca500952b61a25d482a61e33d00df146f01c9aff28a2944400
@@ -200,7 +200,7 @@ nano Containerfile.wp
 ----
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM {registry_hostname}/httpd
+FROM registry-{guid}.{domain}/httpd
 
 RUN dnf -y install lynx
 
@@ -218,13 +218,13 @@ This means these services won't even be able to be started manually.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile.wp --tag {registry_hostname}/caddy-wp:V2
+podman build --file Containerfile.wp --tag registry-{guid}.{domain}/caddy-wp:V2
 ----
 And of course push it to the local registry:
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/caddy-wp:V2
+podman push registry-{guid}.{domain}/caddy-wp:V2
 ----
 
 The name of the image has stayed the same, but we've now added the `V2` to add some semantic versioning. Tags are part of how `bootc` keeps track of images, which is important when it comes to updates. Since this is a new tag, we would need to `switch` to it in order to use it, just like we did the first time. This might be fine, especially since we've turned off auto-updates. 
@@ -243,19 +243,19 @@ Remember from the OS base image discussion that an image can have multiple tags 
 Since we haven't been adding tags to any of our previous builds, they all have the default latest tag automatically applied.
 [source,bash,role="execute",subs=attributes+]
 ----
-podman images {registry_hostname}/caddy-wp
+podman images registry-{guid}.{domain}/caddy-wp
 ----
 You can see both of our caddy images, and the tags associated with them. To make `V2` appear as an available update, add the `latest` tag to that image. The first image is the one to operate on, and the second is the complete target name you want to apply. This can be used in a lot of ways, for example to build all images locally without any registry, organization, and tag info and add that only to specific builds that are ready to be pushed to a registry.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman image tag {registry_hostname}/caddy-wp:V2 {registry_hostname}/caddy-wp:latest
+podman image tag registry-{guid}.{domain}/caddy-wp:V2 registry-{guid}.{domain}/caddy-wp:latest
 ----
 
 This changed the tag locally, so we need to push the newly tagged image to the registry to pick up the change there. You'll notice all of the layers are skipped since this is really just a metadata change.
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/caddy-wp:latest
+podman push registry-{guid}.{domain}/caddy-wp:latest
 ----
 
 Logging back into the VM, you should see an update available for the `caddy-wp` image with the one layer that has our change.
