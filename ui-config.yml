@@ -3,18 +3,33 @@ antora:
   name: modules
   dir: www
   modules:
-    - name: "01-create-an-image"
-      label: "Create An Image"
-      solveButton: true
-    - name: "02-deploy-an-image"
-      label: "Deploy An Image"
-      solveButton: true
-    - name: "03-add-software-to-image"
-      label: "Add Software To Image"
-      solveButton: true
-    - name: "04-apply-image"
-      label: "Apply Image"
-      solveButton: true
+    - name: "module-01"
+      label: "System setup"
+      solveButton: false
+    - name: "module-02"
+      label: "Building the first bootc container"
+      solveButton: false
+    - name: "module-03"
+      label: "Deploying a virtual machine with bootc image"
+      solveButton: false
+    - name: "module-04"
+      label: "Changing bootc hosts"
+      solveButton: false
+    - name: "module-05"
+      label: "Rolling back a bootc host"
+      solveButton: false
+    - name: "module-06"
+      label: "Applying RHEL updates to the bootc base images"
+      solveButton: false
+    - name: "module-07"
+      label: "Repurposing a bootc host"
+      solveButton: false
+    - name: "module-08"
+      label: "Building an unattended install disk ISO"
+      solveButton: false
+    - name: "module-09"
+      label: "Embedding credentials in an image"
+      solveButton: false
 
 tabs:
   - name: "Build host"
