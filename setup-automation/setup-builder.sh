@@ -18,6 +18,13 @@ cat<<EOF> ~/.config/containers/auth.json
 EOF
 
 # Pull the needed images to minimize waiting during the lab
+# Will also need staging and creds for testing
+# UBI
+podman pull registry.access.redhat.com/ubi9/ubi
+# RHEL 9.6 bases
+BOOTC_RHEL_VER=9.6
+podman pull registry.redhat.io/rhel9/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel9/bootc-image-builder:$BOOTC_RHEL_VER
+# RHEL 10 bases
 BOOTC_RHEL_VER=10.0
 podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 
@@ -28,7 +35,7 @@ dnf install -y certbot
 
 # request certificates but don't log keys
 set +x
-certbot certonly --eab-kid "${ZEROSSL_EAB_KEY_ID}" --eab-hmac-key "${ZEROSSL_HMAC_KEY}" --server "https://acme.zerossl.com/v2/DV90" --standalone --preferred-challenges http -d builder-"${GUID}"."${DOMAIN}" --non-interactive --agree-tos -m trackbot@instruqt.com -v
+certbot certonly --eab-kid "${ZEROSSL_EAB_KEY_ID}" --eab-hmac-key "${ZEROSSL_HMAC_KEY}" --server "https://acme.zerossl.com/v2/DV90" --standalone --preferred-challenges http -d registry-"${GUID}"."${DOMAIN}" --non-interactive --agree-tos -m trackbot@instruqt.com -v
 
 # Don't leak password to users
 rm /var/log/letsencrypt/letsencrypt.log
@@ -40,9 +47,8 @@ set -x
 podman run --privileged -d \
   --name registry \
   -p 443:5000 \
-  -p 5000:5000 \
-  -v /etc/letsencrypt/live/builder-"${GUID}"."${DOMAIN}"/fullchain.pem:/certs/fullchain.pem \
-  -v /etc/letsencrypt/live/builder-"${GUID}"."${DOMAIN}"/privkey.pem:/certs/privkey.pem \
+  -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/fullchain.pem:/certs/fullchain.pem \
+  -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/privkey.pem:/certs/privkey.pem \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/fullchain.pem \
   -e REGISTRY_HTTP_TLS_KEY=/certs/privkey.pem \
   quay.io/mmicene/registry:2
@@ -154,8 +160,29 @@ cat <<EOF> ~/config.json
 }
 EOF
 
-# create basic bootc containerfile
+# create basic UBI containerfile
 cat <<EOF> /root/Containerfile
+FROM registry.access.redhat.com/ubi9/ubi
+
+RUN dnf install -y httpd
+RUN echo "Hello Red Hat" > /var/www/html/index.html
+
+ENTRYPOINT /usr/sbin/httpd -DFOREGROUND
+EOF
+
+# create basic bootc containerfile
+cat <<EOF> /root/Containerfile.el10
+FROM registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER
+
+ADD etc /etc
+
+RUN dnf install -y httpd
+RUN systemctl enable httpd
+
+EOF
+# 
+# create basic bootc containerfile
+cat <<EOF> /root/Containerfile.el10
 FROM registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER
 
 ADD etc /etc
@@ -167,7 +194,7 @@ EOF
 
 # Add name based resolution for internal IPs
 echo "10.0.2.2 builder.${GUID}.${DOMAIN}" >> /etc/hosts
-echo "10.0.2.2 builder-${GUID}.${DOMAIN}" >> /etc/hosts
+echo "10.0.2.2 registry-${GUID}.${DOMAIN}" >> /etc/hosts
 cp /etc/hosts ~/etc/hosts
 
 # Script that manages the VM SSH session tab
@@ -198,3 +225,32 @@ ssh core@${VM_NAME}
 EOF
 
 chmod u+x /root/wait_for_bootc_vm.sh
+#
+# Script that manages the ISO SSH session tab
+# Waits for the domain to start and networking before attempting to SSH to guest
+cat <<'EOF'> /root/wait_for_iso.sh
+echo "Waiting for VM 'iso-vm' to be running..."
+VM_READY=false
+VM_STATE=""
+VM_NAME=iso-vm
+while true; do
+    VM_STATE=$(virsh domstate "$VM_NAME" 2>/dev/null)
+    if [[ "$VM_STATE" == "running" ]]; then
+        VM_READY=true
+        break
+    fi
+    sleep 10
+done
+echo "Waiting for SSH to be available..."
+NODE_READY=false
+while true; do
+    if ping -c 1 -W 1 ${VM_NAME} &>/dev/null; then
+        NODE_READY=true
+        break
+    fi
+    sleep 5
+done
+ssh core@${VM_NAME}
+EOF
+
+chmod u+x /root/wait_for_iso.sh

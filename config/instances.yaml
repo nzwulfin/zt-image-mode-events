@@ -18,6 +18,7 @@ virtualmachines:
       - libvirt
       - qemu-kvm
       - libvirt-nss
+      - nano
     terminals:
       - name: wetty_bootc_vm
         command: /root/wait_for_bootc_vm.sh
