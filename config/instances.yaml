@@ -22,6 +22,8 @@ virtualmachines:
     terminals:
       - name: wetty_bootc_vm
         command: /root/wait_for_bootc_vm.sh
+      - name: wetty_iso_vm
+        command: /root/wait_for_iso_vm.sh
     services:
       - name: builder-http
         ports:
