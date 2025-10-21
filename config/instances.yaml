@@ -24,7 +24,7 @@ virtualmachines:
         command: /root/wait_for_bootc_vm.sh
       - name: wetty_iso_vm
         command: /root/wait_for_iso_vm.sh
-  services:
+    services:
       - name: registry-http
         ports:
           - port: 80
