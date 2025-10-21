@@ -180,17 +180,6 @@ RUN dnf install -y httpd
 RUN systemctl enable httpd
 
 EOF
-# 
-# create basic bootc containerfile
-cat <<EOF> /root/Containerfile.el10
-FROM registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER
-
-ADD etc /etc
-
-RUN dnf install -y httpd
-RUN systemctl enable httpd
-
-EOF
 
 # Add name based resolution for internal IPs
 echo "10.0.2.2 builder.${GUID}.${DOMAIN}" >> /etc/hosts
@@ -253,4 +242,4 @@ done
 ssh core@${VM_NAME}
 EOF
 
-chmod u+x /root/wait_for_iso.sh
+chmod u+x /root/wait_for_iso_vm.sh
