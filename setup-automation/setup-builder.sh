@@ -218,7 +218,7 @@ chmod u+x /root/wait_for_bootc_vm.sh
 #
 # Script that manages the ISO SSH session tab
 # Waits for the domain to start and networking before attempting to SSH to guest
-cat <<'EOF'> /root/wait_for_iso.sh
+cat <<'EOF'> /root/wait_for_iso_vm.sh
 echo "Waiting for VM 'iso-vm' to be running..."
 VM_READY=false
 VM_STATE=""
