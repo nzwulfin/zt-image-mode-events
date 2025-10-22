@@ -36,3 +36,5 @@ tabs:
     url: /wetty/ssh/root
   - name: "VM SSH session"
     url: /wetty_bootc_vm/ssh/root
+  - name: "ISO SSH session"
+    url: /wetty_iso_vm/ssh/root

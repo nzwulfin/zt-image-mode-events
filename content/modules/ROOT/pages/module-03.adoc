@@ -61,7 +61,7 @@ As `bootc-image-builder` accesses local storage to find the source image, we wil
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman image scp lab-user@localhost::{registry_hostname}/httpd
+podman image scp lab-user@localhost::registry-{guid}.{domain}/httpd
 ----
 
 Try to generate the image now:
@@ -75,10 +75,10 @@ sudo podman run --rm --privileged \
   --volume .:/output \
   --volume ./config-qcow2.toml:/config.toml \
   --volume /var/lib/containers/storage:/var/lib/containers/storage \
-  registry.redhat.io/rhel9/bootc-image-builder:9.5 \
+  registry.redhat.io/rhel9/bootc-image-builder:9.6 \
   --type qcow2 \
   --local \
-  {registry_hostname}/httpd
+  registry-{guid}.{domain}/httpd
 ----
 
 A brief explanation of the arguments used for `podman run` and `bootc-image-builder`:
@@ -92,7 +92,7 @@ After the image builder version, these arguments passed to `bootc-image-builder`
 
   * `--type qcow2` -> the type of image to build
   * `--local` -> uses system container storage to find the image, this will be the default as of 9.6.
-  * `{registry_hostname}/httpd` -> the bootc image we are unpacking into the qcow2 disk
+  * `registry-{guid}.{domain}/httpd` -> the bootc image we are unpacking into the qcow2 disk
 
 Once this completes, you will find the image in the `qcow2/` directory:
 
@@ -167,7 +167,7 @@ Before we log into our VM, let's check the SHA256 digest of the image in the loc
 
 [source,bash,role="execute",subs=attributes+]
 ----
-skopeo inspect docker://{registry_hostname}/httpd | jq '.Digest'
+skopeo inspect docker://registry-{guid}.{domain}/httpd | jq '.Digest'
 ----
 ....
 "sha256:99694ce76cedd1fa58250c4e5ee6deeb4d91993b89054793394cda31b1d046ab"

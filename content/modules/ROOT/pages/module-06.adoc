@@ -22,13 +22,13 @@ Let's do a quick refresher on what makes up the 'name' of a container image. The
 |what most folks think of as the 'name' of an image, but technically a space for a collection of images, typically related. these days, this collection is typically just iterations of a single image over time, not totally different but related images (eg `rhel-bootc`) 
 
 |tag
-|(optional) identifier for a specific image in the repository, used to convey some information about the contents of the image, has a default of `latest` (eg `rhel-bootc:9.5`)
+|(optional) identifier for a specific image in the repository, used to convey some information about the contents of the image, has a default of `latest` (eg `rhel-bootc:9.6`)
 
 |digest
 |not part of the naming, but how images and tags in registries are actually tracked via SHA256, can be used to pull specific images directly (eg `rhel-bootc@sha256:ee593d553dcda33f424bc0d262fef35b207e0a7df1dce3a0e25584b139c4a4ef`)
 |===
 
-So far, we have be using `registry.redhat.io/rhel9/rhel-bootc:9.5` in the FROM line of the Containerfile, so let's break that down according to our table:
+So far, we have be using `registry.redhat.io/rhel9/rhel-bootc:9.6` in the FROM line of the Containerfile, so let's break that down according to our table:
 
 [cols="~,~"]
 |===
@@ -42,7 +42,7 @@ So far, we have be using `registry.redhat.io/rhel9/rhel-bootc:9.5` in the FROM l
 |rhel-bootc
 
 |tag
-|9.5
+|9.6
 |===
 
 The earlier RHEL 9.4 images are also in the same `rhel-bootc` repository of the `rhel9` namespace. This lets us keep the base images organized in a few different ways by using tags.
@@ -53,10 +53,10 @@ The table below describes the tags associated with the `rhel-bootc` repository.
 |latest
 |the most recent minor release build *within a major* release
 
-|9.5
+|9.6
 |the most recent build of a *particular minor* release
 
-|9.5-1742979700
+|9.6-1742979700
 |a *timestamped build* of a minor release
 |===
 
@@ -68,7 +68,7 @@ date -d@1742979700
 Wed Mar 26 05:01:40 AM EDT 2025
 ....
 ====
-At the time of writing, `latest` would point to `9.5`, the most current minor release of RHEL 9. Both of these also point to `9.5-1742979700`, as seen in the screenshot above. This also means that should a new timestamped build be published to the catalog, the `9.5` tag would automatically update to that next new build. 
+At the time of writing, `latest` would point to `9.6`, the most current minor release of RHEL 9. Both of these also point to `9.6-1742979700`, as seen in the screenshot above. This also means that should a new timestamped build be published to the catalog, the `9.6` tag would automatically update to that next new build. 
 
 If that new build were a new minor release (eg 9.6), the `latest` tag would point to that minor. 
 
@@ -87,7 +87,7 @@ Let's build a new image using an older tag that still checks out to get an idea 
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1739946498
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6-1739946498
 
 RUN dnf install -y httpd
 RUN echo "Hello Red Hat" > /var/www/html/index.html
@@ -101,7 +101,7 @@ Since we're using a tag that doesn't change in the registry, we know that we wil
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile.base --tag {registry_hostname}/base-check
+podman build --file Containerfile.base --tag registry-{guid}.{domain}/base-check
 ----
 You should notice that this build starts by pulling the base image, since it's different than what we have been using.  Since this is just an older version, you will still see shared layers being skipped.
 
@@ -113,13 +113,13 @@ Let's check the version of the kernel that was shipped in this older base image 
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman run --rm -i {registry_hostname}/base-check rpm -qa httpd kernel*
+podman run --rm -i registry-{guid}.{domain}/base-check rpm -qa httpd kernel*
 ----
 The arguments we pass to `podman run` are:
 
   * `--rm` -> remove the container immediately on exit
   * `-i` -> pipe stdin into the container
-  * `{registry_hostname}/base-check` -> the image we just built to launch the container
+  * `registry-{guid}.{domain}/base-check` -> the image we just built to launch the container
   * `rpm -qa httpd kernel*` -> the command to read from stdin and run inside the temporary container
 ....
 kernel-modules-core-5.14.0-503.23.2.el9_5.x86_64
@@ -132,7 +132,7 @@ httpd-2.4.62-1.el9_5.2.x86_64
 You may be tempted to check the kernel version with something like `uname -r`, let's see what happens
 [source,bash,role="execute",subs=attributes+]
 ----
-podman run --rm -i {registry_hostname}/base-check uname -r
+podman run --rm -i registry-{guid}.{domain}/base-check uname -r
 ----
 ....
 5.14.0-503.31.1.el9_5.x86_64
@@ -153,7 +153,7 @@ To update the base image, we only need to change the tag to the latest timestamp
 ----
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry.redhat.io/rhel9/rhel-bootc:9.5-1747115631
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6-1747115631
 
 RUN dnf install -y httpd
 RUN echo "Hello Red Hat" > /var/www/html/index.html
@@ -163,7 +163,7 @@ RUN systemctl enable httpd.service
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile.base --tag {registry_hostname}/base-check
+podman build --file Containerfile.base --tag registry-{guid}.{domain}/base-check
 ----
 You should notice that this build skips *all* of the layers when pulling the base image. While it's a different tag, it's the same image as the one we've used throughout the exercises. Multiple tags can refer to a single image, allow you to convey meaningful information about an image. 
 
@@ -172,7 +172,7 @@ You should also notice that we completely rebuilt the image, since the change in
 Now let's check the package versions in this base image using the same commands as before, but with our new image.
 [source,bash,role="execute",subs=attributes+]
 ----
-podman run --rm -i {registry_hostname}/base-check rpm -qa httpd kernel*
+podman run --rm -i registry-{guid}.{domain}/base-check rpm -qa httpd kernel*
 ----
 ....
 kernel-modules-core-5.14.0-503.40.1.el9_5.x86_64
@@ -220,15 +220,15 @@ And that's really it. By changing the base image the FROM line uses, we now will
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile --tag {registry_hostname}/httpd:9.6
+podman build --file Containerfile --tag registry-{guid}.{domain}/httpd:9.6
 ----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/httpd:9.6
+podman push registry-{guid}.{domain}/httpd:9.6
 ----
 
-Our newly updated image is available for any image mode host now. That's all it takes to start adopting a new minor RHEL release. From here, we could pick a virtual machine and use the `bootc switch` command to start testing changes, but the technological changes between 9.5 and 9.6 are fairly small. That's part of the lifecycle of RHEL. What about something that has a bigger jump?
+Our newly updated image is available for any image mode host now. That's all it takes to start adopting a new minor RHEL release. From here, we could pick a virtual machine and use the `bootc switch` command to start testing changes, but the technological changes between 9.6 and 9.6 are fairly small. That's part of the lifecycle of RHEL. What about something that has a bigger jump?
 
 [#major-upgrade]
 == Testing a new major release
@@ -255,15 +255,15 @@ RUN echo "Hello Red Hat Summit 2025!!" > /usr/share/www/html/index.html
 RUN systemctl enable httpd.service
 ----
 
-We now have an image using RHEL 10, with no other modifications to the rest of the containerfile. Build and push means we have published 3 images that differ only on RHEL version: the most recent 9.5, the recently released 9.6, and the brand new 10.0.
+We now have an image using RHEL 10, with no other modifications to the rest of the containerfile. Build and push means we have published 3 images that differ only on RHEL version: the most recent 9.6, the recently released 9.6, and the brand new 10.0.
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile --tag {registry_hostname}/httpd:10.0
+podman build --file Containerfile --tag registry-{guid}.{domain}/httpd:10.0
 ----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/httpd:10.0
+podman push registry-{guid}.{domain}/httpd:10.0
 ----
 
 With something like testing a new major release, having the ability to test locally and in-place on a development host this quickly is key to faster adoption. Now, this isn't a replacement for in-place upgrades, we are providing a new image. In an environment with more downstream images and live data, this example is only the starting point. We could start local testing, like at the start of this exercise, but having a built-in rollback means we can pick any host and start live tests. 
@@ -288,7 +288,7 @@ To deploy our new RHEL 10 based image for testing, we'll use a new command `boot
 
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo bootc switch {registry_hostname}/httpd:10.0
+sudo bootc switch registry-{guid}.{domain}/httpd:10.0
 ----
 ....
 layers already present: 1; layers needed: 68 (721.0 MB)

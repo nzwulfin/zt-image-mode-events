@@ -18,20 +18,35 @@ virtualmachines:
       - libvirt
       - qemu-kvm
       - libvirt-nss
-    terminals:
-      - name: wetty_bootc_vm
-        command: /root/wait_for_bootc_vm.sh
+      - nano
     services:
-      - name: builder-http
+      - name: registry-http
         ports:
           - port: 80
             protocol: TCP
             targetPort: 80
-            name: builder-http
-
+            name: registry-http
+      - name: registry
+        ports:
+          - port: 443
+            protocol: TCP
+            targetPort: 443
+            name: registry
     routes:
-      - name: builder-http
-        host: builder
-        service: builder-http
+      - name: registry-http
+        host: registry
+        service: registry-http
         targetPort: 80
         tls: false
+        path: "/.well-known/"
+      - name: registry
+        host: registry
+        service: registry
+        targetPort: 443
+        tls: true
+
+    terminals:
+      - name: wetty_bootc_vm
+        command: /root/wait_for_bootc_vm.sh
+      - name: wetty_iso_vm
+        command: /root/wait_for_iso_vm.sh

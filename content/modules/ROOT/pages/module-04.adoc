@@ -62,7 +62,7 @@ Now that we have our new configs, we can add them to the Containerfile and rebui
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry.redhat.io/rhel9/rhel-bootc:9.5
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
 RUN dnf install -y httpd
 
@@ -81,14 +81,14 @@ We rebuild the image with our updates the same way we originally built it.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile --tag {registry_hostname}/httpd
+podman build --file Containerfile --tag registry-{guid}.{domain}/httpd
 ----
 
 And make sure to push it to the registry:
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push {registry_hostname}/httpd
+podman push registry-{guid}.{domain}/httpd
 ----
 
 We now have replaced the original image in the registry we used to create the virtual machine with a new image. This is the standard workflow for making changes to an image mode host. All of our updates, additions, or changes are done via the build systems we use, and are then published to be used by the hosts. We'll talk more about updates and how to differentiate them in a later exercise.
