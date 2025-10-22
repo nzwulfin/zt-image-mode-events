@@ -47,6 +47,7 @@ set -x
 podman run --privileged -d \
   --name registry \
   -p 443:5000 \
+  -p 5000:5000 \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/fullchain.pem:/certs/fullchain.pem \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/privkey.pem:/certs/privkey.pem \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/fullchain.pem \

@@ -19,11 +19,6 @@ virtualmachines:
       - qemu-kvm
       - libvirt-nss
       - nano
-    terminals:
-      - name: wetty_bootc_vm
-        command: /root/wait_for_bootc_vm.sh
-      - name: wetty_iso_vm
-        command: /root/wait_for_iso_vm.sh
     services:
       - name: registry-http
         ports:
@@ -50,3 +45,8 @@ virtualmachines:
         targetPort: 443
         tls: true
 
+    terminals:
+      - name: wetty_bootc_vm
+        command: /root/wait_for_bootc_vm.sh
+      - name: wetty_iso_vm
+        command: /root/wait_for_iso_vm.sh
