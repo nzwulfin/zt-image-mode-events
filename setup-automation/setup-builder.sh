@@ -43,11 +43,19 @@ rm /var/log/letsencrypt/letsencrypt.log
 # reset tracing
 set -x
 
+# set up http based auth for registry
+mkdir auth
+podman run --rm --entrypoint htpasswd docker.io/httpd:2 -Bbn core redhat > auth/htpasswd
+podman rmi docker.io/library/httpd:2
+
 # run a local registry with the provided certs
 podman run --privileged -d \
   --name registry \
   -p 443:5000 \
-  -p 5000:5000 \
+  -v `pwd`/auth:/auth:Z  \
+  -e "REGISTRY_AUTH=htpasswd" \
+  -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+  -e "REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd" \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/fullchain.pem:/certs/fullchain.pem \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/privkey.pem:/certs/privkey.pem \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/fullchain.pem \
