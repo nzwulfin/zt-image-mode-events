@@ -38,3 +38,5 @@ tabs:
     url: /wetty_bootc_vm/ssh/root
   - name: "ISO SSH session"
     url: /wetty_iso_vm/ssh/root
+  - name: ">_ Image mode host"
+    url: /wetty_imrhel/ssh/root

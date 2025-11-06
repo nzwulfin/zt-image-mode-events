@@ -11,6 +11,16 @@
       ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
       ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
       ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+  - name: Add nodes
+    ansible.builtin.add_host:
+      name: "{{ item }}"
+      ansible_ssh_host: "{{ item }}"
+      ansible_ssh_port: "{{ lookup('ansible.builtin.env', 'BASTION_PORT') }}"
+      ansible_ssh_user: "{{ lookup('ansible.builtin.env', 'BASTION_USER') }}"
+      ansible_ssh_pass: "{{ lookup('ansible.builtin.env', 'BASTION_PASSWORD') }}"
+      ansible_python_interpreter: /usr/libexec/platform-python
+    loop:
+      - imrhel
 
 - name: Demo Playbook for the ansible-runner API
   hosts: all:!localhost
@@ -59,6 +69,7 @@
       DOMAIN: "{{ lookup('ansible.builtin.env', 'DOMAIN') }}"
       ZEROSSL_EAB_KEY_ID: "{{ zerossl_eab_key_id }}"
       ZEROSSL_HMAC_KEY: "{{ zerossl_hmac_key }}"
+      STAGE_KEY: "{{ stage_key }}"
 
   - name: Output script result
     ansible.builtin.debug:
@@ -79,3 +90,11 @@
       var: r_result
     when: r_result is defined
 
+
+  - name: Reboot image mode target
+    ansible.builtin.shell: /sbin/shutdown -r now "Reboot requested"
+    async: 1
+    poll: 0
+    ignore_errors: true
+    when: inventory_hostname == "imrhel"
+    become: true

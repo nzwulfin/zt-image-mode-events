@@ -3,8 +3,8 @@ virtualmachines:
   - name: "builder"
     image: "rhel-10-0-07-09-25-3"
     bootloader: efi
-    memory: "4G"
-    cores: 4
+    memory: "16G"
+    cores: 8
     image_size: "40G"
     tags:
       - key: "AnsibleGroup"
@@ -44,9 +44,20 @@ virtualmachines:
         service: registry
         targetPort: 443
         tls: true
-
     terminals:
       - name: wetty_bootc_vm
         command: /root/wait_for_bootc_vm.sh
       - name: wetty_iso_vm
         command: /root/wait_for_iso_vm.sh
+
+  - name: "imrhel"
+    image: "rhel-10-0-07-09-25-3"
+    bootloader: efi
+    memory: "4G"
+    cores: 2
+    image_size: "40G"
+    tags:
+      - key: "AnsibleGroup"
+        value: "nodes"
+    networks:
+      - default
