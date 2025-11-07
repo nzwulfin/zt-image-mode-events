@@ -61,11 +61,11 @@
 #    delegate_to: localhost
 #    register: r_dir_test
 
-#  - name: Copy sample files
-#    when: r_dir_test.stat.isdir and r_dir_test.stat.isdir is defined and inventory_hostname == "builder"
-#    copy:
-#      src: "../samples/"
-#      dest: "/tmp/samples/"
+  - name: Copy sample directory
+    when: inventory_hostname == "builder"
+    copy:
+      src: ../samples/
+      dest: /tmp/
 
   - name: Include secrets var
     include_vars: ../config/secrets.yaml
