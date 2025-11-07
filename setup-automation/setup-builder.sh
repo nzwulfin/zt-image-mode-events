@@ -23,7 +23,6 @@ EOF
 
 # Pull the needed images to minimize waiting during the lab
 # Will also need staging and creds for testing
-# UBI
 podman pull registry.access.redhat.com/ubi9/ubi
 # RHEL 9.6 bases
 BOOTC_RHEL_VER=9.6
@@ -62,41 +61,6 @@ podman run --privileged -d \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/fullchain.pem \
   -e REGISTRY_HTTP_TLS_KEY=/certs/privkey.pem \
   quay.io/mmicene/registry:2
-
-# For the target bootc system build, we need to set up a few config files to operate in the lab environment
-# create sudoers drop in and etc structure to add to container
-mkdir -p ~/etc/sudoers.d/
-echo "%wheel  ALL=(ALL)   NOPASSWD: ALL" >> ~/etc/sudoers.d/wheel
-
-# create config.json for BIB to add a user / pass
-cat <<EOF> ~/config.json
-{
-  "blueprint": {
-    "customizations": {
-      "user": [
-        {
-          "name": "core",
-          "password": "redhat",
-           "groups": [
-	            "wheel"
-	          ]
-        }
-      ]
-    }
-  }
-}
-EOF
-
-# create basic bootc containerfile
-cat <<EOF> /root/Containerfile.el10
-FROM registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER
-
-ADD etc /etc
-
-RUN dnf install -y httpd
-RUN systemctl enable httpd
-
-EOF
 
 # Add name based resolution for internal IPs
 echo "10.0.2.2 builder.${GUID}.${DOMAIN}" >> /etc/hosts
@@ -163,3 +127,4 @@ chmod u+x /root/.wait_for_iso_vm.sh
 
 # Clone the git repo for the application to deploy
 git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git bootc-version
+
