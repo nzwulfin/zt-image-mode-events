@@ -46,9 +46,9 @@ virtualmachines:
         tls: true
     terminals:
       - name: wetty_bootc_vm
-        command: /root/wait_for_bootc_vm.sh
+        command: /root/.wait_for_bootc_vm.sh
       - name: wetty_iso_vm
-        command: /root/wait_for_iso_vm.sh
+        command: /root/.wait_for_iso_vm.sh
 
   - name: "imrhel"
     image: "rhel-10-0-07-09-25-3"
