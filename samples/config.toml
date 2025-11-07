@@ -1,0 +1,5 @@
+[[customizations.user]]
+name = "vm_user"
+password = "vm_user_pass"
+groups = ["wheel"]
+key = "SSHKEY"
