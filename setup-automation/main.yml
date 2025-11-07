@@ -57,7 +57,7 @@
 
   - name: Check if sampeles directory  exists
     ansible.builtin.stat:
-      path: "../samples/"
+      path: "../samples"
     delegate_to: localhost
     register: r_dir_test
 
