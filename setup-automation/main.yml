@@ -64,8 +64,8 @@
   - name: Copy sample directory
     when: inventory_hostname == "builder"
     copy:
-      src: ../samples/
-      dest: /tmp/
+      src: ../samples
+      dest: /tmp
 
   - name: Include secrets var
     include_vars: ../config/secrets.yaml
