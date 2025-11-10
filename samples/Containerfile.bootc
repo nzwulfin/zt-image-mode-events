@@ -41,5 +41,8 @@ RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
 RUN systemctl enable nginx.service
 RUN systemctl enable info-app.service
 
+# firewall turned on by CIS policy
+RUN firewall-offline-cmd -s http 
+
 # Linting will provide hints and improvements in addtion to catching issues
 RUN bootc container lint

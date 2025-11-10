@@ -126,5 +126,5 @@ EOF
 chmod u+x /root/.wait_for_iso_vm.sh
 
 # Clone the git repo for the application to deploy
-git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git bootc-version
+git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
 

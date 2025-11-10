@@ -19,6 +19,8 @@ virtualmachines:
       - qemu-kvm
       - libvirt-nss
       - nano
+      - openscap-utils
+      - scap-security-guide
     services:
       - name: registry-http
         ports:
