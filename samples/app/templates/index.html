@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Host Details Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-motherboard-fill"></i>
+                Live Host Details
+            </a>
+            <div class="d-flex align-items-center text-light">
+                <span class="me-2">Last Updated: <span id="last-updated">Never</span></span>
+                <div class="spinner-border spinner-border-sm text-success d-none" role="status" id="loading-spinner">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card bg-dark text-light border-secondary mb-4">
+                    <div class="card-header fs-5"><i class="bi bi-pc-display-horizontal"></i> Operating System Information</div>
+                    <div class="card-body">
+                        <div class="row" id="os-details-container">
+                            </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="card bg-dark text-light border-secondary h-100">
+                    <div class="card-header fs-5"><i class="bi bi-box-seam"></i> System Package Versions</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Package Name</th>
+                                        <th>Version (<span id="system-os-id">Unknown OS</span>)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="system-packages-tbody">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6 mb-4">
+                <div class="card bg-dark text-light border-secondary h-100">
+                    <div class="card-header fs-5"><i class="bi bi-filetype-py"></i> Python Package Versions</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Package Name</th>
+                                        <th>Version</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="python-packages-tbody">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center text-muted py-4">
+        <p>&copy; 2025 Host Details Viewer</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>

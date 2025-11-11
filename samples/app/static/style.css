@@ -1,0 +1,19 @@
+/* Custom styles to complement Bootstrap Dark theme */
+
+body {
+    background-color: #212529; /* Bootstrap dark bg */
+}
+
+.table-hover tbody tr:hover td, .table-hover tbody tr:hover th {
+    background-color: #343a40; /* A slightly lighter dark for hover */
+}
+
+/* Ensure cards in the same row have the same height */
+.h-100 {
+    height: 100% !important;
+}
+
+/* Add a subtle transition to the loading spinner */
+#loading-spinner {
+    transition: opacity 0.3s ease-in-out;
+}
