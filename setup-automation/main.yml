@@ -55,6 +55,18 @@
       dest: "/tmp/setup-scripts/setup-{{ ansible_host }}.sh"
     register: r_result
 
+#  - name: Check if sampeles directory  exists
+#    ansible.builtin.stat:
+#      path: "../samples"
+#    delegate_to: localhost
+#    register: r_dir_test
+
+  - name: Copy sample directory
+    when: inventory_hostname == "builder"
+    copy:
+      src: ../samples
+      dest: /tmp
+
   - name: Include secrets var
     include_vars: ../config/secrets.yaml
 

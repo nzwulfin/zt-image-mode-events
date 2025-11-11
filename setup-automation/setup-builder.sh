@@ -1,6 +1,7 @@
 #!/bin/bash
 set -x
 
+# Set up the infrastructure environemnt
 # Packages are in instances.yaml, turn on libvirtd and set up nss support
 systemctl enable --now libvirtd
 sed -i 's/hosts:\s\+ files/& libvirt libvirt_guest/' /etc/nsswitch.conf
@@ -23,13 +24,13 @@ EOF
 
 # Pull the needed images to minimize waiting during the lab
 # Will also need staging and creds for testing
-podman pull registry.access.redhat.com/ubi9/ubi
+# podman pull registry.access.redhat.com/ubi9/ubi
 # RHEL 9.6 bases
-BOOTC_RHEL_VER=9.6
-podman pull registry.redhat.io/rhel9/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel9/bootc-image-builder:$BOOTC_RHEL_VER
+# BOOTC_RHEL_VER=9.6
+# podman pull registry.redhat.io/rhel9/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel9/bootc-image-builder:$BOOTC_RHEL_VER
 # RHEL 10 bases
-BOOTC_RHEL_VER=10.0
-podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
+# BOOTC_RHEL_VER=10.0
+# podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 BOOTC_RHEL_VER=10.1
 podman pull registry.stage.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.stage.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 
