@@ -6,6 +6,7 @@ RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
 RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
 
 # Start with the RHEL 10 corporate standard image
+# change the following FROM to match
 FROM registry.redhat.io/rhel10/rhel-bootc AS host
 
 # Install necessary RHEL packages to support the application
@@ -33,7 +34,7 @@ RUN pip3 install -r /opt/app/requirements.txt
 
 
 # Deploy the binary SELinux policy and update the labeling
-COPY --from=semodule nginx_connect_flask_sock.pp /usr/share/selinux/packages/targeted/
+COPY --from=policy nginx_connect_flask_sock.pp /usr/share/selinux/packages/targeted/
 RUN semodule -i /usr/share/selinux/packages/targeted/nginx_connect_flask_sock.pp
 RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
 

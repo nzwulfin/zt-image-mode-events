@@ -1,0 +1,11 @@
+After=network.target
+
+[Service]
+User=nginx
+Group=nginx
+RuntimeDirectory=flask-app
+WorkingDirectory=/app
+ExecStart=/usr/local/bin/gunicorn --workers 3 --bind unix:/run/flask-app/flask-app.sock -m 007 app:app
+
+[Install]
+WantedBy=multi-user.target

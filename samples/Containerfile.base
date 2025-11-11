@@ -1,13 +1,7 @@
-FROM registry.redhat.io/rhel10/rhel-bootc:10.0
 # Admin module
 
-# Set up some variables and labels to ID images in our environments
-MAINTAINER sysadmins@example.com
-# RHEL version inherited from bootc base as redhat.version-id and release
-LABEL vendor="Example Co" \
-      profile="CIS Sever Level 1 base image"
-#ENV profileID=cis_server_l1
-ENV profileID=cis_server_l1_customized
+# Base plus software step
+FROM registry.redhat.io/rhel10/rhel-bootc:10.0
 
 RUN dnf -y install pcp-zeroconf \
         rsyslog \
@@ -18,14 +12,28 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.
 
 RUN dnf -y install btop iftop
 
+# Add image controlled configs
 RUN echo "%wheel  ALL=(ALL)   NOPASSWD: ALL" >> /etc/sudoers.d/wheel
 RUN echo "d /var/lib/rsyslog     700 root root -" >> /etc/tmpfiles.d/rsyslog.conf
 COPY console_kargs.conf /usr/lib/bootc/kargs.d/05-cloud-kargs.toml
 
+# Dealing with registries and additional information step
 #COPY auth.json /etc/ostree/auth.json
+# Set up some variables and labels to ID images in our environments
+MAINTAINER sysadmins@example.com
+# RHEL version inherited from bootc base as redhat.version-id and release
+LABEL vendor="Example Co" \
+      profile="CIS Sever Level 1 base image"
 
-# Security module
-RUN dnf -y install audit fapolicyd firewalld openscap-utils scap-security-guide setroubleshoot-server
+
+# Mask the auto timer so we can control this in a downstream image or host
+RUN systemctl mask bootc-fetch-apply-updates.timer
+
+# Security module starts here with software requirements
+RUN dnf -y install audit fapolicyd openscap-utils scap-security-guide setroubleshoot-server
+
+#ENV profileID=cis_server_l1
+ENV profileID=cis_server_l1_customized
 
 COPY $profileID.xml /tmp/$profileID.xml
 RUN oscap-im --profile $profileID --tailoring-file /tmp/$profileID.xml /usr/share/xml/scap/ssg/content/ssg-rhel10-ds.xml
@@ -35,11 +43,7 @@ RUN oscap-im --profile $profileID --tailoring-file /tmp/$profileID.xml /usr/shar
 #COPY fapolicyd-tmpfiles.conf /etc/tmpfiles.d/
 RUN systemctl enable fapolicyd
 
-# Mask the auto timer so we can control this in a downstream image or host
-RUN systemctl mask bootc-fetch-apply-updates.timer
-
+# Skip these in first 2 modules
 #Clean up caches in the image and lint the container
-RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig -rf
-
-
-RUN bootc container lint
+#RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig -rf
+#RUN bootc container lint

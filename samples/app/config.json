@@ -1,0 +1,19 @@
+{
+  "python_packages": [
+    "Flask",
+    "gunicorn",
+    "distro",
+    "pip",
+    "non_existent_python_package"
+  ],
+  "system_packages": [
+    "bash",
+    "openssl",
+    "curl",
+    "git",
+    "docker",
+    "nginx",
+    "apache2",
+    "non_existent_system_package"
+  ]
+}
