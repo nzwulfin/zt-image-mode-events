@@ -1,0 +1,48 @@
+# Don't carry the SELinux build artifacts with the application image
+# Use the multistage build pattern to compile the binary
+FROM registry.redhat.io/rhel10/rhel-bootc AS policy
+COPY app/nginx_connect_flask_sock.te .
+RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
+RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
+
+# Start with the RHEL 10 corporate standard image
+FROM registry.redhat.io/rhel10/rhel-bootc AS host
+
+# Install necessary RHEL packages to support the application
+RUN dnf install -y nginx \
+    python3-pip && \
+    dnf clean all && rm -rf /var/cache/dnf
+
+# Create the symlink from the original install location to the new target
+RUN <<EORUN
+set -xeuo pipefail
+mkdir /opt/app
+ln -sr /opt/app /app
+semanage fcontext -f l -a -t usr_t /app
+EORUN
+
+# Copy your Flask application files and Gunicorn configuration
+# Application 
+ADD app/ /app
+
+# Configuration files
+ADD etc/ /etc
+
+# Install application requirements via pip3
+RUN pip3 install -r /opt/app/requirements.txt
+
+
+# Deploy the binary SELinux policy and update the labeling
+COPY --from=semodule nginx_connect_flask_sock.pp /usr/share/selinux/packages/targeted/
+RUN semodule -i /usr/share/selinux/packages/targeted/nginx_connect_flask_sock.pp
+RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
+
+# Enable our application services
+RUN systemctl enable nginx.service
+RUN systemctl enable info-app.service
+
+# firewall turned on by CIS policy
+RUN firewall-offline-cmd -s http 
+
+# Linting will provide hints and improvements in addtion to catching issues
+RUN bootc container lint

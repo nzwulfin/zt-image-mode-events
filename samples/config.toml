@@ -1,5 +1,5 @@
 [[customizations.user]]
-name = "vm_user"
-password = "vm_user_pass"
+name = "core"
+password = "redhat"
 groups = ["wheel"]
 key = "SSHKEY"

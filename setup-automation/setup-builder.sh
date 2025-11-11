@@ -24,6 +24,7 @@ EOF
 
 # Pull the needed images to minimize waiting during the lab
 # Will also need staging and creds for testing
+# podman pull registry.access.redhat.com/ubi9/ubi
 # RHEL 9.6 bases
 # BOOTC_RHEL_VER=9.6
 # podman pull registry.redhat.io/rhel9/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel9/bootc-image-builder:$BOOTC_RHEL_VER
@@ -125,42 +126,6 @@ EOF
 
 chmod u+x /root/.wait_for_iso_vm.sh
 
-# Set up the exercise specifics
-#
-# create internet example bootc containerfile
-cat <<EOF> /root/Containerfile.el10
-FROM registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER
-
-RUN echo "%wheel  ALL=(ALL)   NOPASSWD: ALL" >> /etc/sudoers.d/wheel
-
-RUN dnf install -y httpd
-RUN systemctl enable httpd
-
-EOF
-
 # Clone the git repo for the application to deploy
-git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git bootc-version
-
-# Copy the samples folder to the lab user home directory
-cp /tmp/samples ~/samples
-
-# create config.json for BIB to add a user / pass
-#cat <<EOF> ~/config.json
-#{
-#  "blueprint": {
-#    "customizations": {
-#      "user": [
-#        {
-#          "name": "core",
-#          "password": "redhat",
-#           "groups": [
-#	            "wheel"
-#	          ]
-#        }
-#      ]
-#    }
-#  }
-#}
-#EOF
-
+git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
 
