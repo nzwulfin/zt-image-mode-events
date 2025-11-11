@@ -1,0 +1,5 @@
+[[customizations.user]]
+name = "core"
+password = "redhat"
+groups = ["wheel"]
+key = "SSHKEY"
