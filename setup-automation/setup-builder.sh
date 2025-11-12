@@ -40,11 +40,19 @@ rm /var/log/letsencrypt/letsencrypt.log
 # reset tracing
 set -x
 
-# run a local registry with the provided certs
+# set up http based auth for registry
+mkdir .auth
+podman run --rm --entrypoint htpasswd quay.io/hummingbird/httpd:2 -Bbn core redhat > .auth/htpasswd
+podman rmi quay.io/hummingbird/httpd:2
+
+# run a local registry with authenication and the provided certs
 podman run --privileged -d \
   --name registry \
   -p 443:5000 \
-  -p 5000:5000 \
+  -v `pwd`/.auth:/auth:Z  \
+  -e "REGISTRY_AUTH=htpasswd" \
+  -e "REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm" \
+  -e "REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd" \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/fullchain.pem:/certs/fullchain.pem \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/privkey.pem:/certs/privkey.pem \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/fullchain.pem \
@@ -115,7 +123,7 @@ EOF
 chmod u+x /root/.wait_for_iso_vm.sh
 
 # Clone the git repo for the application to deploy
-git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
+git clone --single-branch --branch bootc https://github.com/rhel-labs/python-hostinfo.git /root/bootc-version
 
 # Clone the samples directory and move it to the working home directory
 git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filter=tree:0 ${GIT_REPO} /tmp/lab
