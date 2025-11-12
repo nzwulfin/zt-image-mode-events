@@ -117,13 +117,14 @@ chmod u+x /root/.wait_for_iso_vm.sh
 # Clone the git repo for the application to deploy
 git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
 
-# Clone the samples directory and move it to the working home directory
+# Clone the examples directory and move it to the working home directory
+EXAMPLE=examples
 git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filter=tree:0 ${GIT_REPO} /tmp/lab
-git -C /tmp/lab sparse-checkout set --no-cone /samples
+git -C /tmp/lab sparse-checkout set --no-cone /${EXAMPLE}
 git -C /tmp/lab checkout
-if [ -d /tmp/lab/samples ]; then 
-    cp -r /tmp/lab/samples /root/samples
-    mv /tmp/lab/samples samples
+if [ -d /tmp/lab/${EXAMPLE}]; then 
+    cp -r /tmp/lab/${EXAMPLE} /root/${EXAMPLE}
+    mv /tmp/lab/${EXAMPLE} ${EXAMPLE}
 fi
 rm -rf /tmp/lab
 
