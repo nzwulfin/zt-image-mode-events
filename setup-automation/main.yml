@@ -55,14 +55,13 @@
       dest: "/tmp/setup-scripts/setup-{{ ansible_host }}.sh"
     register: r_result
 
-#  - name: Check if sampeles directory  exists
-#    ansible.builtin.stat:
-#      path: "../samples"
-#    delegate_to: localhost
-#    register: r_dir_test
+  - name: Check if sampeles directory  exists
+    ansible.builtin.stat:
+      path: ../samples
+    register: r_dir_test
 
   - name: Copy sample directory
-    when: inventory_hostname == "builder"
+    when: inventory_hostname == "builder" and r_dir_test.stat.isdir
     copy:
       src: ../samples
       dest: /tmp
