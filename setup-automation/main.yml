@@ -92,7 +92,6 @@
       var: r_result
     when: r_result is defined
 
-
   - name: Reboot image mode target
     ansible.builtin.shell: /sbin/shutdown -r now "Reboot requested"
     async: 1

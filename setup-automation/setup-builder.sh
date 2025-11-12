@@ -19,14 +19,6 @@ cat<<EOF> ~/.config/containers/auth.json
 EOF
 
 # Pull the needed images to minimize waiting during the lab
-# Will also need staging and creds for testing
-# podman pull registry.access.redhat.com/ubi9/ubi
-# RHEL 9.6 bases
-# BOOTC_RHEL_VER=9.6
-# podman pull registry.redhat.io/rhel9/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel9/bootc-image-builder:$BOOTC_RHEL_VER
-# RHEL 10 bases
-# BOOTC_RHEL_VER=10.0
-# podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 BOOTC_RHEL_VER=10.1
 podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 
@@ -125,9 +117,8 @@ chmod u+x /root/.wait_for_iso_vm.sh
 # Clone the git repo for the application to deploy
 git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
 
-
 # Clone the samples directory and move it to the working home directory
-git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filter=tree:0 ${GIT_REPO}
+git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filter=tree:0 ${GIT_REPO} /tmp/lab
 git -C /tmp/lab sparse-checkout set --no-cone /samples
 git -C /tmp/lab checkout
 if [ -d /tmp/lab/samples ]; then 
