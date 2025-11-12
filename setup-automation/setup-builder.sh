@@ -129,6 +129,11 @@ chmod u+x /root/.wait_for_iso_vm.sh
 # Clone the git repo for the application to deploy
 git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
 
+# Test the ansible dir copy version
+if [ -d /tmp/samples ]; then 
+    mv /tmp/samples /root/ansi-samples
+fi
+
 # Clone the samples directory and move it to the working home directory
 git clone --no-checkout --depth=1 --filter=tree:0 https://github.com/rhel-labs/zt-image-mode-events.git /tmp/lab
 git -C /tmp/lab sparse-checkout set --no-cone /samples
