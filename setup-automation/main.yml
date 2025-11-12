@@ -55,18 +55,6 @@
       dest: "/tmp/setup-scripts/setup-{{ ansible_host }}.sh"
     register: r_result
 
-#  - name: Check if sampeles directory  exists
-#    ansible.builtin.stat:
-#      path: "../samples"
-#    delegate_to: localhost
-#    register: r_dir_test
-
-  - name: Copy sample directory
-    when: inventory_hostname == "builder"
-    copy:
-      src: ../samples
-      dest: /tmp
-
   - name: Include secrets var
     include_vars: ../config/secrets.yaml
 
@@ -82,6 +70,8 @@
       ZEROSSL_EAB_KEY_ID: "{{ zerossl_eab_key_id }}"
       ZEROSSL_HMAC_KEY: "{{ zerossl_hmac_key }}"
       STAGE_KEY: "{{ stage_key }}"
+      GIT_REPO: "{{ lookup('ansible.builtin.env', 'GIT_REPO_URL') }}"
+      GIT_BRANCH: "{{ lookup('ansible.builtin.env', 'GIT_REPO_REF') }}"
 
   - name: Output script result
     ansible.builtin.debug:
@@ -101,7 +91,6 @@
     ansible.builtin.debug:
       var: r_result
     when: r_result is defined
-
 
   - name: Reboot image mode target
     ansible.builtin.shell: /sbin/shutdown -r now "Reboot requested"

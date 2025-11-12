@@ -13,26 +13,14 @@ cat<<EOF> ~/.config/containers/auth.json
     "auths": {
       "registry.redhat.io": {
         "auth": "${REGISTRY_PULL_TOKEN}"
-      },
-      "registry.stage.redhat.io": {
-			"auth":
-			"${STAGE_KEY}"
-	}
+      }
     }
   }
 EOF
 
 # Pull the needed images to minimize waiting during the lab
-# Will also need staging and creds for testing
-# podman pull registry.access.redhat.com/ubi9/ubi
-# RHEL 9.6 bases
-# BOOTC_RHEL_VER=9.6
-# podman pull registry.redhat.io/rhel9/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel9/bootc-image-builder:$BOOTC_RHEL_VER
-# RHEL 10 bases
-# BOOTC_RHEL_VER=10.0
-# podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 BOOTC_RHEL_VER=10.1
-podman pull registry.stage.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.stage.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
+podman pull registry.redhat.io/rhel10/rhel-bootc:$BOOTC_RHEL_VER registry.redhat.io/rhel10/bootc-image-builder:$BOOTC_RHEL_VER
 
 # Remove pull credentials
 # rm ~/.config/containers/auth.json
@@ -130,9 +118,12 @@ chmod u+x /root/.wait_for_iso_vm.sh
 git clone --single-branch --branch bootc https://github.com/nzwulfin/python-pol.git /root/bootc-version
 
 # Clone the samples directory and move it to the working home directory
-git clone --no-checkout --depth=1 --filter=tree:0 https://github.com/rhel-labs/zt-image-mode-events.git /tmp/lab
+git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filter=tree:0 ${GIT_REPO} /tmp/lab
 git -C /tmp/lab sparse-checkout set --no-cone /samples
 git -C /tmp/lab checkout
-mv /tmp/lab/samples/ /root
+if [ -d /tmp/lab/samples ]; then 
+    cp -r /tmp/lab/samples /root/samples
+    mv /tmp/lab/samples samples
+fi
 rm -rf /tmp/lab
 
