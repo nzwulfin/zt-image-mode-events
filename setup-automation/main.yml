@@ -70,8 +70,8 @@
       ZEROSSL_EAB_KEY_ID: "{{ zerossl_eab_key_id }}"
       ZEROSSL_HMAC_KEY: "{{ zerossl_hmac_key }}"
       STAGE_KEY: "{{ stage_key }}"
-      GIT_REPO: "{{ ocp4_workload_showroom_content_git_repo }}"
-      GIT_BRANCH: "{{ ocp4_workload_showroom_content_git_repo_ref }}"
+      GIT_REPO: "{{ lookup('ansible.builtin.env', 'GIT_REPO_URL') }}"
+      GIT_BRANCH: "{{ lookup('ansible.builtin.env', 'GIT_REPO_REF') }}"
 
   - name: Output script result
     ansible.builtin.debug:
