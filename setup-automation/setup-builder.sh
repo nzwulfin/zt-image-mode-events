@@ -122,7 +122,7 @@ EXAMPLE=examples
 git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filter=tree:0 ${GIT_REPO} /tmp/lab
 git -C /tmp/lab sparse-checkout set --no-cone /${EXAMPLE}
 git -C /tmp/lab checkout
-if [ -d /tmp/lab/${EXAMPLE}]; then 
+if [ -d /tmp/lab/${EXAMPLE} ]; then 
     cp -r /tmp/lab/${EXAMPLE} /root/${EXAMPLE}
     mv /tmp/lab/${EXAMPLE} ${EXAMPLE}
 fi
