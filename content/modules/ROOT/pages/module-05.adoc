@@ -1,28 +1,5 @@
 == Image mode good ideas
 
-update timer
-
-[source,dockerfile,role="execute",subs=attributes+]
-----
-RUN systemctl mask bootc-fetch-apply-updates.timer
-----
-
-labels
-
-[source,dockerfile,role="execute",subs=attributes+]
-----
-# Set up some variables and labels to ID images in our environments
-MAINTAINER sysadmins@example.com
-# RHEL version inherited from bootc base as redhat.version-id and release
-LABEL vendor="Example Corp" 
-----
-
-lint all the things
-[source,dockerfile,role="execute",subs=attributes+]
-----
-RUN bootc container lint
-----
-
 First, let's set up a directory structure that mimics `/etc` and create the 
 files we need inside it. This allows us to add all the configs at once with a single command and in 
 a single layer of the image.
@@ -54,10 +31,29 @@ mv console_kargs.conf usr/lib/bootc/kargs.d/05-cloud-kargs.toml
 Replace the individual file COPY lines with directory ADDs
 [source,dockerfile,role="execute",subs=attributes+]
 ----
+# Add image controlled configs
 ADD etc/ /etc
 ADD usr/ /usr
 ----
 
+labels
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+# Set up some variables and labels to ID images in our environments
+MAINTAINER sysadmins@example.com
+# RHEL version inherited from bootc base as redhat.version-id and release
+LABEL vendor="Example Corp" 
+----
+
+update timer
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN systemctl mask bootc-fetch-apply-updates.timer
+----
+
+Build and push
 [source,bash,role="execute",subs=attributes+]
 ----
 podman build --file Containerfile --tag registry-{guid}.{domain}/base
@@ -68,6 +64,7 @@ podman build --file Containerfile --tag registry-{guid}.{domain}/base
 podman push registry-{guid}.{domain}/base
 ----
 
+SWITCH TAB
 Apply our final update
 [source,bash,role="execute",subs=attributes+]
 ----

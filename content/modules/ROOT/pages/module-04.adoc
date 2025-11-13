@@ -27,7 +27,7 @@ nano 10-wheel
 
 Add the following and save the file
 
-[source,text,role="execute",subs=attributes+]
+[source,shell]
 ----
 # Enable passwordless sudo for the wheel group
 %wheel        ALL=(ALL)       NOPASSWD: ALL
@@ -42,7 +42,7 @@ nano console_kargs.conf
 
 Add the following and save the file
 
-[source,text,role="execute",subs=attributes+]
+[source,shell]
 ----
 kargs = ["console=tty0", "console=ttyS0,115200n8"]
 ----
@@ -134,9 +134,10 @@ error: Upgrading: Preparing import: Fetching manifest: failed to invoke method O
 sudo podman login -u core -p redhat registry-{guid}.{domain} --authfile=/etc/ostree/auth.json
 ----
 
-[source,dockerfile,role="execute",subs=attributes+]
+[source,bash,role="execute",subs=attributes+]
 ----
 ls /etc/ostree/auth.json
+sudo cat /etc/ostree/auth.json
 ----
 
 (Reminder, the password for `sudo` is `redhat`)
