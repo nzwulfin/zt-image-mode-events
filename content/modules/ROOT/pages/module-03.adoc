@@ -150,16 +150,53 @@ btop
 
 [source,bash,role="execute",subs=attributes+]
 ----
-bootc status
+sudo bootc status
 ----
 ....
-No staged image present
-Current booted image: node.g94th.g94th.gcp.redhatworkshops.io/httpd:latest <1>
-    Image version: 9.20250326.0 (2025-04-03 14:36:38.438935004 UTC)
-    Image digest: sha256:99694ce76cedd1fa58250c4e5ee6deeb4d91993b89054793394cda31b1d046ab
-No rollback image present
+ Booted image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:b937c4633ae298d3c68d97810b1b6dc276e8d47f8aea0a6ba85eff540b966539 (amd64)
+       Version: 10.1 (2025-11-13T16:56:36Z)
 ....
 <1> This section details the name of the image, the version with creation timestamp, and the SHA256 digest from the registry. This digest should match the previous output from `skopeo`. 
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc status --format yaml
+----
+....
+apiVersion: org.containers.bootc/v1
+kind: BootcHost
+metadata:
+  name: host
+spec:
+  image:
+    image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+    transport: registry
+  bootOrder: default
+status:
+  staged: null
+  booted:
+    image:
+      image:
+        image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        transport: registry
+      version: '10.1'
+      timestamp: 2025-11-13T16:56:36.232037898Z
+      imageDigest: sha256:b937c4633ae298d3c68d97810b1b6dc276e8d47f8aea0a6ba85eff540b966539
+      architecture: amd64
+    cachedUpdate: null
+    incompatible: false
+    pinned: false
+    softRebootCapable: true
+    store: ostreeContainer
+    ostree:
+      stateroot: default
+      checksum: 7b67791e3f5f79e86d9d4f297cfbac57de6e96f67df46622047429bf60429b99
+      deploySerial: 0
+  rollback: null
+  rollbackQueued: false
+  type: bootcHost
+....
 
 This status provides information about the images on the host. There are 3 different images that may be available on a bootc host: the booted image, the staged image, and the rollback image. We'll discuss the latter two images later in the lab. The booted image is what's currently defined as the active environment. The image name here is what `bootc` tracks to detect any updates that come available. 
 
@@ -173,7 +210,7 @@ For other ways, we can look at how the system was started, let's look at kernel 
  cat /proc/cmdline
 ----
 ....
-BOOT_IMAGE=(hd0,gpt3)/boot/ostree/default-6fe9dddacaf5c3232ba2332010aa7442e0a6d0e3f455b7572b047cc2284c3f2f/vmlinuz-5.14.0-427.26.1.el9_4.x86_64 root=UUID=5425bac2-bfc2-457d-93f8-ae7d3bf14d6d rw boot=UUID=9b9c7b0a-61c6-4a66-ade5-8c6690f1efa7 rw console=tty0 console=ttyS0 ostree=/ostree/boot.1/default/6fe9dddacaf5c3232ba2332010aa7442e0a6d0e3f455b7572b047cc2284c3f2f/0
+BOOT_IMAGE=(hd0,gpt3)/boot/ostree/default-8229ec6e3d87cd7730bff98dd2a6aeedb8727371cd61de8783c3fe8234bd2797/vmlinuz-6.12.0-124.8.1.el10_1.x86_64 root=UUID=37979fd9-1866-466d-8795-4c8c7594031c rw boot=UUID=5613f646-1ab4-49cd-862b-c0636c26af6a rw console=tty0 console=ttyS0 ostree=/ostree/boot.1/default/8229ec6e3d87cd7730bff98dd2a6aeedb8727371cd61de8783c3fe8234bd2797/0
 ....
 
 We can see in the kernel command line some clear ties to an `ostree` partition, which is how images are stored and managed on a bootc host. We'll talk more about that later.
@@ -186,22 +223,25 @@ One other obvious difference for bootc hosts is the layout of the filesystem.
 ----
 ....
 Filesystem     Type      Size  Used Avail Use% Mounted on
-devtmpfs       devtmpfs  4.0M     0  4.0M   0% /dev
+composefs      overlay   7.6M  7.6M     0 100% /
+/dev/vda4      xfs       8.5G  2.3G  6.3G  27% /etc
+devtmpfs       devtmpfs  1.9G     0  1.9G   0% /dev
 tmpfs          tmpfs     2.0G     0  2.0G   0% /dev/shm
-tmpfs          tmpfs     783M  592K  783M   1% /run
-/dev/vda4      xfs       8.5G  1.9G  6.7G  22% /sysroot
-composefs      overlay   6.3M  6.3M     0 100% /
+tmpfs          tmpfs     782M  608K  782M   1% /run
 tmpfs          tmpfs     2.0G     0  2.0G   0% /tmp
-/dev/vda3      xfs       960M  145M  816M  16% /boot
-/dev/vda2      vfat      501M  7.1M  494M   2% /boot/efi
-tmpfs          tmpfs     392M     0  392M   0% /run/user/1000
+tmpfs          tmpfs     1.0M     0  1.0M   0% /run/credentials/systemd-journald.service
+/dev/vda3      xfs       960M  157M  804M  17% /boot
+/dev/vda2      vfat      501M  8.8M  492M   2% /boot/efi
+tmpfs          tmpfs     391M  4.0K  391M   1% /run/user/1000
+tmpfs          tmpfs     1.0M     0  1.0M   0% /run/credentials/getty@tty1.service
+tmpfs          tmpfs     1.0M     0  1.0M   0% /run/credentials/serial-getty@ttyS0.service
 ....
 
 Rather than the usual layout, you'll notice that our root filesystem is an overlay and `/sysroot` looks like where most of the storage is used. You can also check the output of `ls -l /` and notice that there are a lot of symlinks where you might expect directories or filesystems.  This is a key difference that is tied to how updates, rollbacks, and software management works on image mode hosts.  We'll explore this in a later exercise.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-systemctl status rsyslogd
+systemctl status rsyslog.service
 ----
 Before proceeding, make sure you have changed back to the builder terminal.
 

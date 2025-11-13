@@ -33,7 +33,7 @@ Add the following and save the file
 %wheel        ALL=(ALL)       NOPASSWD: ALL
 ----
 
-And let's provide a message of the day!
+For some cloud provider serial consoles we need to update the ttyS0 definition
 
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -55,20 +55,12 @@ Now that we have our new configs, we can add them to the Containerfile and rebui
 # Add image controlled configs
 COPY 10-wheel /etc/sudoers.d/wheel
 COPY console_kargs.conf /usr/lib/bootc/kargs.d/05-cloud-kargs.toml
-# RUN echo "d /var/lib/rsyslog     700 root root -" >> /etc/tmpfiles.d/rsyslog.conf
 ----
 
 
 [source,bash,role="execute",subs=attributes+]
 ----
 podman build --file Containerfile --tag registry-{guid}.{domain}/base
-----
-
-And make sure to push it to the registry:
-
-[source,bash,role="execute",subs=attributes+]
-----
-podman push registry-{guid}.{domain}/base
 ----
 
 [#distribute]
@@ -85,17 +77,20 @@ We have a registry available within the lab environment we can push our image to
 ----
 podman push registry-{guid}.{domain}/base
 ----
+....
+Error: trying to reuse blob sha256:7c1862f54f1a8b765bb4f3c6763cfc512d00bfe4fa3246fbcf38c273489a9be1 at destination: checking whether a blob sha256:7c1862f54f1a8b765bb4f3c6763cfc512d00bfe4fa3246fbcf38c273489a9be1 exists in registry-mjghb.apps.ocpvdev01.rhdp.net/base: authentication required
+....
 
 Authenticate and add to Containerfile
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman login -u core -p redhat registry-GUID.DOMAIN
+podman login -u core -p redhat registry-{guid}.{domain}
 ----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman login -u core -p redhat registry-GUID.DOMAIN --authfile=auth.json
+podman login -u core -p redhat registry-{guid}.{domain} --authfile=auth.json
 ----
 
 [source,dockerfile,role="execute",subs=attributes+]
@@ -116,15 +111,32 @@ We now have replaced the original image in the registry we used to create the vi
 
 [#update-vm]
 == Updating the virtual machine
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl list-timers
+----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman login -u core -p redhat registry-GUID.DOMAIN --authfile=auth.json
+systemctl status bootc-fetch-apply-updates.timer
+----
+
+(Reminder, the password for `sudo` is `redhat`)
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update
+----
+....
+error: Upgrading: Preparing import: Fetching manifest: failed to invoke method OpenImage: reading manifest latest in registry-mjghb.apps.ocpvdev01.rhdp.net/base: authentication required
+....
+[source,bash,role="execute",subs=attributes+]
+----
+sudo podman login -u core -p redhat registry-{guid}.{domain} --authfile=/etc/ostree/auth.json
 ----
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-cp auth.json /etc/ostree/auth.json
+ls /etc/ostree/auth.json
 ----
 
 (Reminder, the password for `sudo` is `redhat`)
@@ -137,15 +149,15 @@ Notice that `bootc update` provides information about the layers that have been 
 
 The final output should look something like this:
 ....
-layers already present: 67; layers needed: 4 (185.1 MB)
-Fetched layers: 176.49 MiB in 28 seconds (6.26 MiB/s)                                   
-  Deploying: done (5 seconds)                                                           
-Queued for next boot: node.cxdrb.cxdrb.gcp.redhatworkshops.io/httpd
-  Version: 9.20250326.0
-  Digest: sha256:737be173b45120c062473e9a88d020bc33c32a9069d4c257b74e4f5ab7241e41
-Total new layers: 71    Size: 1.2 GB
-Removed layers:   3     Size: 185.1 MB
-Added layers:     4     Size: 185.1 MB
+layers already present: 0; layers needed: 72 (1.1 GB)
+Fetched layers: 1.05 GiB in 25 seconds (43.11 MiB/s)                            
+    Deploying: done (11 seconds)
+Queued for next boot: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+    Version: 10.1
+    Digest: sha256:10eb5e2ebba0e549deb43315786731ff976d544f6f682c4cf30de0f4c371a059
+Total new layers: 72    Size: 1.1 GB
+Removed layers:   69    Size: 2.1 GB
+Added layers:     72    Size: 1.1 GB
 ....
 
 Let's check the current status of the host.
@@ -154,15 +166,14 @@ Let's check the current status of the host.
 sudo bootc status
 ----
 ....
-Current staged image: node.cxdrb.cxdrb.gcp.redhatworkshops.io/httpd <1>
-    Image version: 9.20250326.0 (2025-04-04 14:28:06.536999208 UTC)
-    Image digest: sha256:737be173b45120c062473e9a88d020bc33c32a9069d4c257b74e4f5ab7241e41
-Current booted image: node.cxdrb.cxdrb.gcp.redhatworkshops.io/httpd
-    Image version: 9.20250326.0 (2025-04-04 14:11:45.808515934 UTC)
-    Image digest: sha256:1e69b8a519eccf248e235960dd5eef3c5c546226c0000c655126e00e11438519
-No rollback image present
+ Staged image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:10eb5e2ebba0e549deb43315786731ff976d544f6f682c4cf30de0f4c371a059 (amd64)
+       Version: 10.1 (2025-11-13T17:17:56Z)
+
+● Booted image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:b937c4633ae298d3c68d97810b1b6dc276e8d47f8aea0a6ba85eff540b966539 (amd64)
+       Version: 10.1 (2025-11-13T16:56:36Z)
 ....
-<1> The SHA in the `staged` block should match the Digest from the output of `bootc update`. You will also see the timestamp of the change. Since the base image is the same, no change shows up in the version output.
 
 Updates to bootc hosts are offline in nature, meaning the new image has been readied for deployment, but no other changes have been made to the running system. 
 

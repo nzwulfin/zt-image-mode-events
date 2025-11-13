@@ -35,6 +35,10 @@ mkdir -p etc/sudoers.d
 ----
 [source,bash,role="execute",subs=attributes+]
 ----
+mkdir -p etc/ostree
+----
+[source,bash,role="execute",subs=attributes+]
+----
 mkdir -p usr/lib/bootc/kargs.d
 ----
 
@@ -54,3 +58,93 @@ ADD etc/ /etc
 ADD usr/ /usr
 ----
 
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/base
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/base
+----
+
+Apply our final update
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --apply
+----
+
+
+OH NO rollback VM:
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc upgrade --check
+----
+
+
+[source,bash,role="execute",subs=attributes+]
+----
+ls /etc/ostree
+----
+
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc status
+----
+....
+● Booted image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:10eb5e2ebba0e549deb43315786731ff976d544f6f682c4cf30de0f4c371a059 (amd64)
+       Version: 10.1 (2025-11-13T17:17:56Z)
+
+  Rollback image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+          Digest: sha256:d83d9f48a16e98c2d8ca2240f99ce0e2d2ffc5bc948d0434bff1810d2b58e6d5 (amd64)
+         Version: 10.1 (2025-11-13T17:30:16Z)
+....
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc rollback --apply
+----
+
+
+Back to builder to see why:
+[source,bash,role="execute",subs=attributes+]
+----
+ll etc/ostree/
+----
+....
+total 0
+....
+
+[source,bash,role="execute",subs=attributes+]
+----
+ll .
+----
+[source,bash,role="execute",subs=attributes+]
+----
+ mv auth.json etc/ostree/
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/base
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/base
+----
+
+VM:
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --apply
+----
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --check
+----
+....
+No changes in: docker://registry-mjghb.apps.ocpvdev01.rhdp.net/base
+....
