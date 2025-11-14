@@ -57,6 +57,10 @@ podman run --privileged -d \
   -v /etc/letsencrypt/live/registry-"${GUID}"."${DOMAIN}"/privkey.pem:/certs/privkey.pem \
   -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/fullchain.pem \
   -e REGISTRY_HTTP_TLS_KEY=/certs/privkey.pem \
+  --health-cmd 'curl -Lfs https://registry-"${GUID}"."${DOMAIN}"/v2/_catalog' \
+  --health-interval 30s \
+  --health-timeout 10s \
+  --health-retries 3 \
   quay.io/mmicene/registry:2
 
 # Add name based resolution for internal IPs
