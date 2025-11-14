@@ -1,5 +1,8 @@
 
 ---
+- name: Skip all runtime automation
+  ansible.builtin.meta: end_play
+
 - name: Create inventory
   hosts: localhost
   gather_facts: false
