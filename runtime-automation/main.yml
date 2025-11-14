@@ -17,16 +17,6 @@
   become: false
 
   tasks:
-  - name: Check if /module_dir/module_stage-host.sh exists
-    ansible.builtin.stat:
-      path: "./{{ module_dir }}/{{ module_stage }}-{{ config_host }}.sh"
-    delegate_to: localhost
-    register: r_script_test
-
-  - name: Skip all runtime automation
-    ansible.builtin.meta: end_play
-    when: not r_script_test.stat.exists
-    
   - name: Simple debug task
     ansible.builtin.debug:
       msg: "Hello Runner"
@@ -40,6 +30,12 @@
       path: "/tmp/runtime-scripts/{{ module_dir }}"
       state: directory
       mode: '0755'
+
+  - name: Check if /module_dir/module_stage-host.sh exists
+    ansible.builtin.stat:
+      path: "./{{ module_dir }}/{{ module_stage }}-{{ config_host }}.sh"
+    delegate_to: localhost
+    register: r_script_test
 
   - name: Copy script file
     when: r_script_test.stat.exists
