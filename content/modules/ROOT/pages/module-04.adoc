@@ -8,21 +8,10 @@ In this lab, you will learn how to make configuration or software changes in ima
 We've created our first system but there are a few things that might be missing we typically 
 do to our systems. Not requiring a password every time we use sudo might be something we allow 
 admins to do. We may also need to put notices on logins or present info in the MOTD. Let's make 
-some changes to how the system behaves. While we're at it, lets update the index page too.
+some changes to how the system behaves. 
 
-First, let's set up a directory structure that mimics `/etc` and create the 
-files we need inside it. This allows us to add all the configs at once with a single command and in 
-a single layer of the image.
 
-NOTE: This is a local directory, relative to the location of the Containerfile, not the system `/etc/`.
-
-[source,bash,role="execute",subs=attributes+]
-----
-mkdir -p etc/sudoers.d
-----
-
-Since the motd file lives in the top level of `/etc`, that one command creates all the paths 
-we need for this exercise. RHEL supports drop-in directories for several services and applications, including 
+RHEL supports drop-in directories for several services and applications, including 
 `sudo` privileges. 
 
 Drop-in support lets us add a file to a `<servicename>.d` directory rather than editing 
@@ -33,7 +22,7 @@ Let's address the sudoers password first, by allowing users in the wheel group t
 
 [source,bash,role="execute",subs=attributes+]
 ----
-nano etc/sudoers.d/wheel
+nano 10-wheel
 ----
 
 Add the following and save the file
@@ -44,77 +33,113 @@ Add the following and save the file
 %wheel        ALL=(ALL)       NOPASSWD: ALL
 ----
 
-And let's provide a message of the day!
+For some cloud provider serial consoles we need to update the ttyS0 definition
 
 [source,bash,role="execute",subs=attributes+]
 ----
-nano etc/motd
+nano console_kargs.conf
 ----
 
 Add the following and save the file
 
 [source,text,role="execute",subs=attributes+]
 ----
-Welcome to the image mode lifestyle!
+kargs = ["console=tty0", "console=ttyS0,115200n8"]
 ----
 
 Now that we have our new configs, we can add them to the Containerfile and rebuild the image.
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry.redhat.io/rhel9/rhel-bootc:9.6
 
-RUN dnf install -y httpd
-
-ADD etc/ /etc # <1>
-
-RUN echo "Hello Red Hat Summit 2025!!" > /var/www/html/index.html # <2>
-
-RUN systemctl enable httpd.service
+# Add image controlled configs
+COPY 10-wheel /etc/sudoers.d/wheel
+COPY console_kargs.conf /usr/lib/bootc/kargs.d/05-cloud-kargs.toml
 ----
-<1> Copies all the local `etc/` contents we just created into `/etc` in the image
-<2> Update the text in the index.html too
 
-If you aren't familiar, the `ADD` directive has some extra capabilities over the `COPY` command. Where `COPY` only works on a single file, `ADD` can work on complete directories or even unpack tar files. This can be very useful when dealing with multiple files and directories that all start from the same place, but could make the Containerfile a little opaque if folks are unfamiliar with the syntax and the results.
-
-We rebuild the image with our updates the same way we originally built it. 
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile --tag registry-{guid}.{domain}/httpd
+podman build --file Containerfile --tag registry-{guid}.{domain}/base
 ----
 
-And make sure to push it to the registry:
+[#distribute]
+== Distributing the bootc image
+
+Now that we have a full operating system in a standard OCI container image, we can use
+standard container registries to host and distribute our OS images. The only atypical thing so far 
+is what's in the base image. How we added software or files to the image is the same as any other 
+application container. The special sauce of `bootc` comes when a host is running.
+
+We have a registry available within the lab environment we can push our image to:
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman push registry-{guid}.{domain}/httpd
+podman push registry-{guid}.{domain}/base
+----
+....
+Error: trying to reuse blob sha256:7c1862f54f1a8b765bb4f3c6763cfc512d00bfe4fa3246fbcf38c273489a9be1 at destination: checking whether a blob sha256:7c1862f54f1a8b765bb4f3c6763cfc512d00bfe4fa3246fbcf38c273489a9be1 exists in registry-mjghb.apps.ocpvdev01.rhdp.net/base: authentication required
+....
+
+Authenticate and add to Containerfile
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman login -u core -p redhat registry-{guid}.{domain}
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman login -u core -p redhat registry-{guid}.{domain} --authfile=auth.json
+----
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+COPY auth.json /etc/ostree/auth.json
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/base
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/base
 ----
 
 We now have replaced the original image in the registry we used to create the virtual machine with a new image. This is the standard workflow for making changes to an image mode host. All of our updates, additions, or changes are done via the build systems we use, and are then published to be used by the hosts. We'll talk more about updates and how to differentiate them in a later exercise.
 
 [#update-vm]
 == Updating the virtual machine
-
-The virtual machine you have created in the previous exercise should still be running. You can check this with:
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl list-timers
+----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-virsh --connect qemu:///system list
+systemctl status bootc-fetch-apply-updates.timer
 ----
 
-And the output should list the virtual machine called `qcow-vm` as `running`.
-
-Now you can ssh into the virtual machine:
-
+(Reminder, the password for `sudo` is `redhat`)
 [source,bash,role="execute",subs=attributes+]
 ----
-ssh {vm_user}@qcow-vm
+sudo bootc update
+----
+....
+error: Upgrading: Preparing import: Fetching manifest: failed to invoke method OpenImage: reading manifest latest in registry-mjghb.apps.ocpvdev01.rhdp.net/base: authentication required
+....
+[source,bash,role="execute",subs=attributes+]
+----
+sudo podman login -u core -p redhat registry-{guid}.{domain} --authfile=/etc/ostree/auth.json
 ----
 
-The `bootc update` command will download and prepare a detected update for use at the next boot. This means updates are offline, and can be applied at any time. Changes will only take effect when the system reboots. 
+[source,dockerfile,role="execute",subs=attributes+]
+----
+ls /etc/ostree/auth.json
+----
 
-(Reminder, the password for `sudo` is `{vm_user_pass}`)
+(Reminder, the password for `sudo` is `redhat`)
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc update
@@ -124,15 +149,15 @@ Notice that `bootc update` provides information about the layers that have been 
 
 The final output should look something like this:
 ....
-layers already present: 67; layers needed: 4 (185.1 MB)
-Fetched layers: 176.49 MiB in 28 seconds (6.26 MiB/s)                                   
-  Deploying: done (5 seconds)                                                           
-Queued for next boot: node.cxdrb.cxdrb.gcp.redhatworkshops.io/httpd
-  Version: 9.20250326.0
-  Digest: sha256:737be173b45120c062473e9a88d020bc33c32a9069d4c257b74e4f5ab7241e41
-Total new layers: 71    Size: 1.2 GB
-Removed layers:   3     Size: 185.1 MB
-Added layers:     4     Size: 185.1 MB
+layers already present: 0; layers needed: 72 (1.1 GB)
+Fetched layers: 1.05 GiB in 25 seconds (43.11 MiB/s)                            
+    Deploying: done (11 seconds)
+Queued for next boot: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+    Version: 10.1
+    Digest: sha256:10eb5e2ebba0e549deb43315786731ff976d544f6f682c4cf30de0f4c371a059
+Total new layers: 72    Size: 1.1 GB
+Removed layers:   69    Size: 2.1 GB
+Added layers:     72    Size: 1.1 GB
 ....
 
 Let's check the current status of the host.
@@ -141,15 +166,14 @@ Let's check the current status of the host.
 sudo bootc status
 ----
 ....
-Current staged image: node.cxdrb.cxdrb.gcp.redhatworkshops.io/httpd <1>
-    Image version: 9.20250326.0 (2025-04-04 14:28:06.536999208 UTC)
-    Image digest: sha256:737be173b45120c062473e9a88d020bc33c32a9069d4c257b74e4f5ab7241e41
-Current booted image: node.cxdrb.cxdrb.gcp.redhatworkshops.io/httpd
-    Image version: 9.20250326.0 (2025-04-04 14:11:45.808515934 UTC)
-    Image digest: sha256:1e69b8a519eccf248e235960dd5eef3c5c546226c0000c655126e00e11438519
-No rollback image present
+ Staged image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:10eb5e2ebba0e549deb43315786731ff976d544f6f682c4cf30de0f4c371a059 (amd64)
+       Version: 10.1 (2025-11-13T17:17:56Z)
+
+● Booted image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:b937c4633ae298d3c68d97810b1b6dc276e8d47f8aea0a6ba85eff540b966539 (amd64)
+       Version: 10.1 (2025-11-13T16:56:36Z)
 ....
-<1> The SHA in the `staged` block should match the Digest from the output of `bootc update`. You will also see the timestamp of the change. Since the base image is the same, no change shows up in the version output.
 
 Updates to bootc hosts are offline in nature, meaning the new image has been readied for deployment, but no other changes have been made to the running system. 
 
@@ -163,31 +187,12 @@ sudo systemctl reboot
 [#testing]
 == Testing the changes
 
-After a short wait, log back into the system and and you should see the message of the day after logging in successfully.
+[source,bash,role="execute",subs=attributes+]
+----
+cat /proc/cmdline
+----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-ssh {vm_user}@qcow-vm
+sudo bootc status
 ----
-
-We can check on our sudoers policy change as well. You shouldn't be prompted for a password for any `sudo` commands since the user is in the `wheel` group.
-[source,bash,role="execute",subs=attributes+]
-----
-sudo cat /etc/motd
-----
-
-What about the change to the index page?
-[source,bash,role="execute",subs=attributes+]
-----
-curl http://localhost
-sudo cat /var/www/html/index.html
-----
-....
-Hello Red Hat
-....
-
-The new text doesn't appear, and it's also not in the file on disk. This is *expected* based on 
-how `bootc` handles directories and image contents during changes.
-
-Stay logged into the VM to explore how `bootc` manages file updates in the next module.
-
