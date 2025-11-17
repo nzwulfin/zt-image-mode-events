@@ -30,6 +30,21 @@ antora:
     - name: "module-09"
       label: "Embedding credentials in an image"
       solveButton: false
+    - name: "module-10"
+      label: "Embedding credentials in an image"
+      solveButton: false
+    - name: "module-11"
+      label: "Embedding credentials in an image"
+      solveButton: false
+    - name: "module-12"
+      label: "Embedding credentials in an image"
+      solveButton: false
+    - name: "module-13"
+      label: "Embedding credentials in an image"
+      solveButton: false
+    - name: "module-14"
+      label: "Embedding credentials in an image"
+      solveButton: false
 
 tabs:
   - name: "Build host"
@@ -40,3 +55,9 @@ tabs:
     url: /wetty_iso_vm/ssh/root
   - name: ">_ Image mode host"
     url: /wetty_imrhel/ssh/root
+    modules:
+      - module-10
+      - module-11
+      - module-12
+      - module-13
+      - module-14
