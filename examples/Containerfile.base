@@ -1,7 +1,10 @@
 # Admin module
+FROM registry.redhat.io/rhel10/rhel-bootc:10.1
 
-# Base plus software step
-FROM registry.redhat.io/rhel10/rhel-bootc:10.0
+# Set up some variables and labels to ID images in our environments
+MAINTAINER sysadmins@example.com
+# RHEL version inherited from bootc base as redhat.version-id and release
+LABEL vendor="Example Corp"
 
 RUN dnf -y install pcp-zeroconf \
         rsyslog \
@@ -11,6 +14,13 @@ RUN dnf -y install pcp-zeroconf \
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
 
 RUN dnf -y install btop iftop
+
+# Add image controlled configs
+ADD etc/ /etc
+ADD usr/ /usr
+
+RUN systemctl mask bootc-fetch-apply-updates.timer
+
 
 # Add image controlled configs
 RUN echo "%wheel  ALL=(ALL)   NOPASSWD: ALL" >> /etc/sudoers.d/wheel
