@@ -25,6 +25,9 @@ echo "PermitRootLogin yes" >> $STATEROOT/etc/ssh/sshd_config.d/ansible_permit_ro
 # don't replace passwd/group files as this will cause issues with UID/GIDs
 \cp -f /etc/shadow $STATEROOT/etc/shadow
 
+# Set up password auth for the registry in the STATEROOT so we can pull 
+podman login -u core -p redhat registry-${GUID}.${DOMAIN} --authfile=$STATEROOT/etc/ostree/auth.json
+
 # Use local IP for FQDN instead of cluster IP
 echo "10.0.2.2 imrhel.${GUID}.${DOMAIN}" >> $STATEROOT/etc/hosts
 
