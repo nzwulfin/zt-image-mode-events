@@ -80,8 +80,6 @@ EORUN
 
 RUN bootc container lint
 ----
-
-Checklist of things to look into:
 <1> Changing to the secured baseline
 <2> How files from the repo are injected into the image
 <3> Compiling an SELinux module from the app directory
@@ -186,8 +184,8 @@ mkdir -p etc/nginx/conf.d/
 ----
 [source,bash,role="execute",subs=attributes+]
 ----
-----
 mv app/info-app.service etc/systemd/system
+----
 [source,bash,role="execute",subs=attributes+]
 ----
 mv app/info-app.conf etc/nginx/conf.d
@@ -247,7 +245,7 @@ nano Containerfile
 FROM registry-tpzl8.apps.ocpvdev01.rhdp.net/base
 old:
 # Copy the Flask application files and Gunicorn service file
-ADD . /app
+COPY . /app
 COPY info-app.service /etc/systemd/system/
 
 # Install requirements via pip3
