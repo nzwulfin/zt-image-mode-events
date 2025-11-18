@@ -131,6 +131,7 @@ git clone --single-branch --branch ${GIT_BRANCH} --no-checkout --depth=1 --filte
 git -C /tmp/lab sparse-checkout set --no-cone /${EXAMPLE}
 git -C /tmp/lab checkout
 if [ -d /tmp/lab/${EXAMPLE} ]; then 
+    podman login -u core -p redhat registry-${GUID}.${DOMAIN} --authfile=$EXAMPLE
     cp -r /tmp/lab/${EXAMPLE} /root/${EXAMPLE}
     mv /tmp/lab/${EXAMPLE} ${EXAMPLE}
 fi
