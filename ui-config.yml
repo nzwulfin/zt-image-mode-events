@@ -31,19 +31,19 @@ antora:
       label: "Embedding credentials in an image"
       solveButton: false
     - name: "module-10"
-      label: "Embedding credentials in an image"
+      label: "Dev mod troubleshoot"
       solveButton: false
     - name: "module-11"
-      label: "Embedding credentials in an image"
+      label: "Dev mod rebase"
       solveButton: false
     - name: "module-12"
-      label: "Embedding credentials in an image"
+      label: "Dev mod idiomatic"
       solveButton: false
     - name: "module-13"
-      label: "Embedding credentials in an image"
+      label: "Dev mod movin day"
       solveButton: false
     - name: "module-14"
-      label: "Embedding credentials in an image"
+      label: "Extra dev mod"
       solveButton: false
 
 tabs:

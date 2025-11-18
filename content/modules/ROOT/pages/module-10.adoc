@@ -176,7 +176,7 @@ Since this is executed like any other shell `heredoc`, we need to use some `set`
 We'll use a new tag test that `systemd` will handle the directory creation on a switch and our app now starts.
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile--tag registry-{guid}.{domain}/app-test:v2
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 ----
 Note the linter isn't complaining about `nginx` in `/var` any more.
 ....
