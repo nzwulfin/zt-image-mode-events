@@ -12,10 +12,6 @@ The OCI specification allows for multiple image and assoociated actions to be de
 This is refered to as a multi-stage build and can be used to separate portions of the build while making still accessible later in the process. 
 
 Let's explore how that can work by looking at the SELinux module creation in the Containerfile.
-[source,bash,role="execute",subs=attributes+]
-----
-nano Containerfile
-----
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
@@ -69,9 +65,22 @@ RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
 See how the new multi-stage build operates
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile--tag registry-{guid}.{domain}/app-test:v2
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 ----
 
+First thing is there's an addition to the STEP output, `[X/Y]` at the start of the line to indicate what stage the step is assoociated with.
+This helps troubleshooting builds.
+....
+[1/2] STEP 1/4: FROM registry.redhat.io/rhel10/rhel-bootc:10.1 AS policy
+[1/2] STEP 2/4: COPY app/nginx_connect_flask_sock.te .
+--> d6976d459410
+[1/2] STEP 3/4: RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
+--> da9bac8dd1e5
+[1/2] STEP 4/4: RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
+--> 3ca8e0442c1a
+[2/2] STEP 1/11: FROM registry-j475j.apps.ocpvdev01.rhdp.net/base AS host
+Trying to pull registry-j475j.apps.ocpvdev01.rhdp.net/base:latest...
+....
 Before me move on, there's other work in that block, making sure the /run directory gets created and labeled correctly.
 That shouldn't be needed as long as the label is present and the service file is correct.
 

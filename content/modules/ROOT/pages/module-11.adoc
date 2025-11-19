@@ -98,14 +98,14 @@ vim Containerfile
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry-tpzl8.apps.ocpvdev01.rhdp.net/base
+FROM registry-{guid}.apps.ocpvdev01.rhdp.net/base
 ----
 
 Rebuild and push
 And of course push it to the local registry:
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile--tag registry-{guid}.{domain}/app-test:v2
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 ----
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -194,7 +194,7 @@ mv app/info-app.conf etc/nginx/conf.d
 Add our nginx tmpfiles fix, but this time to `/etc/tmpfiles.d/`
 [source,bash,role="execute",subs=attributes+]
 ----
-mkdir =p etc/tmpfiles.d/
+mkdir -p etc/tmpfiles.d/
 ----
 
 [source,bash,role="execute",subs=attributes+]
@@ -281,7 +281,7 @@ Build and test (soft reboot)
 
 [source,bash,role="execute",subs=attributes+]
 ----
-podman build --file Containerfile--tag registry-{guid}.{domain}/app-test:v2
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 ----
 [source,bash,role="execute",subs=attributes+]
 ----
