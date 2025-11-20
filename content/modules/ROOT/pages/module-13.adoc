@@ -11,6 +11,12 @@ In this lab we'll explore this as we expand on the idea of standardized builds a
 
 A sharp eyed junior noticed that console arguments we passed had a redundant definition.
 On the build host, let's update the config file and remove the duplicate entry.
+
+[source,bash,role="execute",subs=attributes+]
+----
+cd
+----
+
 [source,bash,role="execute",subs=attributes+]
 ----
 nano console_kargs.conf

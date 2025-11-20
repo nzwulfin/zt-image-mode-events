@@ -16,23 +16,25 @@ the developers have also asked for some help making the build a little more 'nat
 Part of this new flow can also include source control.
 Since this application is already in a git repo, we can do our work on a new branch to use for review with the developers.
 
+Get into the developers' repo
+[source,bash,role="execute",subs=attributes+]
+----
+cd bootc-version
+----
+
 Make a new branch in the repo
 [source,bash,role="execute",subs=attributes+]
 ----
 git switch -C base-image
 ----
+
 Make a copy of the original to make comparisons easier.
 [source,bash,role="execute",subs=attributes+]
 ----
 cp Containerfile Containerfile.orig
 ----
 
-
-[source,bash,role="execute",subs=attributes+]
-----
-cat Containerfile
-----
-
+Here's the Containerfile they've created for the app.
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Start with the RHEL 10 bootable base image
@@ -134,6 +136,13 @@ systemctl status nginx.service --no-pager
 ----
 systemctl status info-app.service --no-pager
 ----
+
+Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
+
+[source,bash,role="execute",subs=attributes+]
+----
+ss -tnlp
+----
 [source,bash,role="execute",subs=attributes+]
 ----
 firewall-cmd --list-services
@@ -142,6 +151,7 @@ firewall-cmd --list-services
 ----
 firewall-cmd --add-service http
 ----
+Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
 
 On build host
 [source,bash,role="execute",subs=attributes+]
