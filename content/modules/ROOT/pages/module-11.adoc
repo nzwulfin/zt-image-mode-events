@@ -134,7 +134,33 @@ systemctl status nginx.service --no-pager
 ----
 systemctl status info-app.service --no-pager
 ----
-With the app still working, we can move on with deeper clean up.
+[source,bash,role="execute",subs=attributes+]
+----
+firewall-cmd --list-services
+----
+[source,bash,role="execute",subs=attributes+]
+----
+firewall-cmd --add-service http
+----
+
+On build host
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN firewall-offline-cmd -s http
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+With the firewall adressed, we can move on with deeper clean up.
 
 [source,bash,role="execute",subs=attributes+]
 ----

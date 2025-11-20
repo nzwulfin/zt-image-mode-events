@@ -84,6 +84,14 @@ Trying to pull registry-j475j.apps.ocpvdev01.rhdp.net/base:latest...
 Before me move on, there's other work in that block, making sure the /run directory gets created and labeled correctly.
 That shouldn't be needed as long as the label is present and the service file is correct.
 
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
 
-
+ON image mode host? (need external testing)
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --soft-reboot=required --apply
+----
 

@@ -13,7 +13,7 @@ A sharp eyed junior noticed that console arguments we passed had a redundant def
 On the build host, let's update the config file and remove the duplicate entry.
 [source,bash,role="execute",subs=attributes+]
 ----
-nano config_kargs.toml
+nano console_kargs.conf
 ----
 
 [source,shell,role="execute",subs=attributes+]
@@ -48,6 +48,11 @@ Tracking static tags provide the most control over updates and image contents, a
 ----
 podman images base
 ----
+....
+REPOSITORY                                   TAG         IMAGE ID      CREATED         SIZE
+registry-n96qr.apps.ocpvdev01.rhdp.net/base  v1.1        dec88a35b72d  17 seconds ago  2.49 GB
+registry-n96qr.apps.ocpvdev01.rhdp.net/base  latest      662065c7c402  35 minutes ago  2.49 GB
+....
 There's several ways to address this, we'll discuss two in this lab.
 
 == Stable tags vs automation
@@ -68,12 +73,26 @@ Enterprise registries will also have more features for dealing with tags and oth
 ----
 skopeo copy docker://registry-{guid}.{domain}/base:v1.1 docker://registry-{guid}.{domain}/base:prod
 ----
+....
+Copying blob bd9ddc54bea9 skipped: already exists  
+Copying config dec88a35b7 done   | 
+Writing manifest to image destination
+....
 
 [source,bash,role="execute",subs=attributes+]
 ----
-skopeo list-tags  docker://registry-{guid}.{domain}/base:
+skopeo list-tags  docker://registry-{guid}.{domain}/base
 ----
-
+....
+{
+    "Repository": "registry-n96qr.apps.ocpvdev01.rhdp.net/base",
+    "Tags": [
+        "v1.1",
+        "prod",
+        "latest"
+    ]
+}
+....
 This may seem like a hassle, which is where processes like GitOps enter the picture.
 Image updates in a registry and providing an updated Containerfile is something developers use tools like `renovatebot` and `dependabot` to track.
 These tools will allow you to track static tags like `10.1-` for full control over when updates are applied, but still make updates easier by eliminating the toil of tracking and updating the tag names.
@@ -94,12 +113,16 @@ nano Containerfile
 ----
 FROM registry-{guid}.{domain}/base:prod AS host
 ----
+No need to update the SELinux stage since that uses base RHEL tools to compile the policy
 
 Build this as a simple update, but the same tagging logic can be applied to any bootc image.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 ----
+
+The policy stage uses the cache, but the application stage pulls the new image and rebuilds.
+
 And of course push it to the local registry:
 
 [source,bash,role="execute",subs=attributes+]
