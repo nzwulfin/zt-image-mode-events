@@ -1,0 +1,97 @@
+= Using container practices with our OS builds
+
+In addition to simplifying updates and providing native rollback, operating RHEL in image mode also makes it simple to adopt application container development practices for operating system definiteions. 
+
+In this lab we'll explore this feature as well as expand on the idea of standardized builds and derived images.
+
+[#write-containerfiles]
+== Using multi-stage builds
+
+One common pattern in container builds is offloading the creation of binary components that need to be generated at build time, but don't need to carry all of the dependencies into the final image. 
+The OCI specification allows for multiple image and assoociated actions to be defined in a single Containerfile.
+This is refered to as a multi-stage build and can be used to separate portions of the build while making still accessible later in the process. 
+
+Let's explore how that can work by looking at the SELinux module creation in the Containerfile.
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+# Ensure nginx can talk to gunicorn
+WORKDIR /app # <.>
+RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo # <.>
+RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
+RUN semodule -i nginx_connect_flask_sock.pp # <.>
+RUN mkdir /run/flask-app && chgrp -R nginx /run/flask-app && chmod 770 /run/flask-app # <.>
+RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
+----
+<.> Doing work in the production application target
+<.> Intermediate files created in the image
+<.> The final binary policy we really need, but in the application directory
+<.> Other work needed to make things take effect
+
+Let's rearrange the work for this module to use a multi-stage build and not carry around extra files in the application directory.
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+First, build the policy in a named stage
+[source,dockerfile,role="execute",subs=attributes+]
+----
+FROM registry.redhat.io/rhel10/rhel-bootc:10.1 AS policy # <.>
+COPY app/nginx_connect_flask_sock.te .
+RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
+RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
+----
+<.> naming this stage let's us access it later
+
+Second, change the original `FROM` line
+[source,dockerfile,role="execute",subs=attributes+]
+----
+FROM registry-{guid}.{domain}/base AS host <.>
+----
+<.> name our application definition stage
+
+Finally, replace the old block with a copy from the policy stage
+[source,dockerfile,role="execute",subs=attributes+]
+----
+# Deploy the binary SELinux policy and update the labeling
+COPY --from=policy nginx_connect_flask_sock.pp \ # <.>
+/usr/share/selinux/packages/targeted/ # <.>
+RUN semodule -i /usr/share/selinux/packages/targeted/nginx_connect_flask_sock.pp
+RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
+----
+<.> `--from` tells podman to look for a matching stage for a file and copy from there instead of the host filesystem
+<.> target a system location for our custom policy instead of the application directory
+
+See how the new multi-stage build operates
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+
+First thing is there's an addition to the STEP output, `[X/Y]` at the start of the line to indicate what stage the step is assoociated with.
+This helps troubleshooting builds.
+....
+[1/2] STEP 1/4: FROM registry.redhat.io/rhel10/rhel-bootc:10.1 AS policy
+[1/2] STEP 2/4: COPY app/nginx_connect_flask_sock.te .
+--> d6976d459410
+[1/2] STEP 3/4: RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
+--> da9bac8dd1e5
+[1/2] STEP 4/4: RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
+--> 3ca8e0442c1a
+[2/2] STEP 1/11: FROM registry-j475j.apps.ocpvdev01.rhdp.net/base AS host
+Trying to pull registry-j475j.apps.ocpvdev01.rhdp.net/base:latest...
+....
+Before me move on, there's other work in that block, making sure the /run directory gets created and labeled correctly.
+That shouldn't be needed as long as the label is present and the service file is correct.
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+
+ON image mode host? (need external testing)
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --soft-reboot=required --apply
+----
+

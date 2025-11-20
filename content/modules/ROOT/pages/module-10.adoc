@@ -1,0 +1,233 @@
+= Repurposing a bootc host
+
+In addition to simplifying updates and providing native rollback, operating RHEL in image mode also makes it simple to quickly change the purpose of a running system.
+
+This means experimenting with new versions of application components or testing OS updates is as simple as applying any other image change.
+
+In this lab we'll explore this feature as well as expand on the idea of standardized builds and derived images.
+
+[#write-containerfiles]
+== Testing the developers bug report
+
+The developers have built a version of their app using the Red Hat provided base image that works on initial install but not when switching an existing image mode host. 
+Why?
+
+First, let's add linting and then build a copy to test the switch.
+
+[source,bash,role="execute",subs=attributes+]
+----
+cd bootc-version
+----
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN bootc container lint
+----
+
+== Build and push the image
+
+When we build this image, we will use a new name to denote it's new purpose. Your naming and tagging conventions should aim to convey information to the people who need them as much as providing hooks to automate and control visibility to hosts.
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test
+----
+no errors, but we do see warnings about content in `/var` about logs, directories, and other files. 
+....
+STEP 15/15: RUN bootc container lint
+Lint warning: var-log: Found non-empty logfiles:
+  /var/log/dnf.librepo.log
+  /var/log/dnf.log
+  /var/log/dnf.rpm.log
+  /var/log/hawkey.log
+  /var/log/rhsm/rhsm.log
+
+Lint warning: var-tmpfiles: Found content in /var missing systemd tmpfiles.d entries:
+  d /var/lib/dnf 0755 root root - -
+  d /var/lib/nginx 0770 nginx root - -
+  d /var/lib/nginx/tmp 0770 nginx root - -
+  d /var/log/nginx 0711 root root - -
+  d /var/roothome/.cache 0755 root root - -
+  ...and 128 more
+Found non-directory/non-symlink files in /var:
+  var/lib/dnf/history.sqlite
+  var/lib/dnf/history.sqlite-shm
+  var/lib/dnf/history.sqlite-wal
+  var/lib/rhsm/cache/productid_repo_mapping.json
+  var/lib/rhsm/productid.js
+  ...and 66 more
+....
+[#build]
+This may be the culprit, let's push it to the local registry and find out:
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test
+----
+
+
+[#switch-run]
+== Switch and test the image
+
+After the new container image has been pushed to the local registry, you can `switch` the bootc image to the WordPress one. This `bootc` command is how we change what image to follow for updates. From here on, any changes made to the original `httpd` image would not show up as an available update, only changes to the new `app-test` image.
+
+[source,bash,role="execute",subs=attributes+]
+----
+bootc switch registry-{guid}.{domain}/app-test
+----
+NOTE: You may see warnings about Non-ASCII characters, this is a side effect of moving a RHEL 9 host to RHEL 10, and doesn't affect the host.
+
+From a status perspective, a switch looks the same as an update. There's a new deployment that's been staged and prepared for the next boot, but the image reference is completely different.
+
+[source,bash,role="execute",subs=attributes+]
+----
+bootc status
+----
+....
+  Staged image: registry-bcsvm.apps.ocpvdev01.rhdp.net/app-test
+        Digest: sha256:7bf214162491f10288150824d14cafbd7da62336255c9f043ffd1ebeec1ad3d2
+       Version: 10.1 (2025-11-17 16:03:11.935540475 UTC)
+
+● Booted image: quay.io/mmicene/im-day2-tgt:9.6
+        Digest: sha256:b8b171136d276dc943a27fcdc6b90876538fffef502622109e1451492a9c7de7
+       Version: 9.6 (2025-09-08 18:56:51.120175635 UTC)
+....
+
+As usual, after the command is done you need to reboot the virtual machine
+for the changes to take effect. Before doing that, please make sure you are logged in to the
+virtual machine and not the hypervisor (the prompt should look like `[{vm_user}@qcow-vm ~]$`):
+
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl reboot
+----
+
+After a short while, you can log back in to the virtual machine:
+
+[source,bash,role="execute",subs=attributes+]
+----
+ssh {vm_user}@qcow-vm
+----
+
+[#layers]
+== Troubleshooting derived builds
+
+Check on the status of our newly created quadlet by checking the caddy proxy server and what it inherited from the standard build. 
+....
+[systemd]
+Failed Units: 1
+  nginx.services
+....
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status nginx.service --no-pager
+----
+....
+Nov 17 16:18:10 imrhel systemd[1]: Starting nginx.service - The nginx HTTP and reverse proxy server...
+Nov 17 16:18:10 imrhel nginx[1078]: nginx: [alert] could not open error log file: open() "/var/log/nginx/error.log…irectory)
+Nov 17 16:18:10 imrhel nginx[1078]: nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+Nov 17 16:18:10 imrhel nginx[1078]: 2025/11/17 16:18:10 [emerg] 1078#1078: mkdir() "/var/lib/nginx/tmp/client_body…irectory)
+Nov 17 16:18:10 imrhel nginx[1078]: nginx: configuration file /etc/nginx/nginx.conf test failed
+....
+
+Looks like that was our culprit but why?
+
+In an image mode system, `bootc` manages available images on disk for updates and rollbacks. 
+Behind the scenes, `bootc` handles the following directories differently, which is what allows for the seamless update and rollback experience. 
+
+  * `/usr` -> image state, contents of the image will be extracted and overwrite local files
+  * `/etc` -> local configuration state, contents of the image are merged with a preference for local files
+  * `/var` -> local state, contents of the image will be ignored after the initial installation of any image
+
+At install, initial nginx logs and workfing files went in `/var` which means after it was unpacked from the original image, `bootc` treated it as local machine state. 
+So the directories created by the RPM install aren't created on the running host, which explains why a fresh install launches the app but a switch fails. 
+This is one of the new mental models that needs to be adopted to handle image mode operations. 
+We don't expect you to handle all of these manually. 
+Uppstream packages have been moving to use `systemd tmpfiles` and `systemd sysusers` to handle user and file creation for some time.
+The introduction of image mode has put some pressure on this migration, but you can already see the `nginx` package https://src.fedoraproject.org/rpms/nginx/blob/aff374fc9038f31a53370f5779f4d03df8fbbc6d/f/nginx.tmpfiles[already has a fix upstream.]
+
+== Workaround rebuild
+
+Let's use that to create a local version of nginx.tmpfiles in the system location. 
+This means when the new RPM lands, we can just remove this from our Containerfile and the system will continue to work as expected.
+
+
+Let's add a `heredoc` just before the linter in the Containerfile to create the new file for testing.
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN <<EORUN
+    set -exuo pipefail
+    echo "d /var/lib/nginx     770 nginx root -" >> /usr/lib/tmpfiles.d/nginx.conf
+    echo "d /var/lib/nginx/tmp 770 nginx root -" >> /usr/lib/tmpfiles.d/nginx.conf
+    echo "d /var/log/nginx     711 root  root -" >> /usr/lib/tmpfiles.d/nginx.conf
+EORUN
+----
+
+Using the `heredoc` let's us run multiple commands as a single layer and can be very handy.
+Since this is executed like any other shell `heredoc`, we need to use some `set` magic to make sure a failure here stops the build.
+
+We'll use a new tag test that `systemd` will handle the directory creation on a switch and our app now starts.
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+Note the linter isn't complaining about `nginx` in `/var` any more.
+....
+Lint warning: var-tmpfiles: Found content in /var missing systemd tmpfiles.d entries:
+  d /var/lib/dnf 0755 root root - -
+  d /var/roothome/.cache 0755 root root - -
+  d /var/roothome/.cache/pip 0755 root root - -
+  d /var/roothome/.cache/pip/http-v2 0755 root root - -
+  d /var/roothome/.cache/pip/http-v2/0 0755 root root - -
+....
+And of course push it to the local registry:
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+
+YOLO the switch
+[source,bash,role="execute",subs=attributes+]
+----
+bootc switch registry-{guid}.{domain}/app-test:v2 --apply
+----
+
+Logging in no errors, check on `nginx`
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status nginx.service --no-pager
+----
+....
+Nov 17 17:03:33 imrhel systemd[1]: Starting nginx.service - The nginx HTTP and reverse proxy server...
+Nov 17 17:03:34 imrhel nginx[1055]: nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+Nov 17 17:03:34 imrhel nginx[1055]: nginx: configuration file /etc/nginx/nginx.conf test is successful
+Nov 17 17:03:34 imrhel systemd[1]: Started nginx.service - The nginx HTTP and reverse proxy server.
+....
+
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status info-app.service --no-pager
+----
+Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
+
+The host details page is up and running on the test host. With that solved, we can start on migrating the app from the Red Hat base to our corporate baseline.
+
+
+== Core principles
+Easy updates, rollbacks, and image switching are part of the core improvements to the operation of image mode systems. 
+Layering is an important part of the design of standard builds and can have some downstream effects as well. 
+Just like stacking configuration management, thinking through the idea of layered builds can be powerful.
+
+In this lab we've covered the very basics of image mode to get you started in your exploration of what this can do for you and your environment. There's a lot we haven't covered, like compliance, managing kernel arguments, integrating with other tools like Ansible or Satellite, and much more. Image mode is just leaving tech preview, so there's a full roadmap of improvements to come.
+
+We've got other ways to learn more, including https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_image_mode_for_rhel_to_build_deploy_and_manage_operating_systems/introducing-image-mode-for-rhel_using-image-mode-for-rhel-to-build-deploy-and-manage-operating-systems[documentation^], https://github.com/redhat-cop/rhel-bootc-examples[example snippets^], https://github.com/redhat-cop/redhat-image-mode-demo[other exercises^], and more.
+
+In the next modules, we'll add a little more color to ways image mode can be used.

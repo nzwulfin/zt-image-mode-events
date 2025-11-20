@@ -1,0 +1,343 @@
+= changing to our new baseline
+
+In this lab we'll expand on the idea of standardized builds and derived images.
+
+[#write-containerfiles]
+== Building from the standard base
+
+With image mode, a few new options are available. The developers can take a standard build that has all of the operations tools available, security policies applied, add their application. This ensures a common experience across the teams, making Troubleshooting and design smoother. 
+
+Starting with a Containerfile solved the `works on my machine` problem in a new way. 
+Reproducing the issue was extremly simple with a known starting point.
+In fact, instead of starting with the Containerfile, we could have used the exact image for our testing and ensured reproducability.
+
+the developers have also asked for some help making the build a little more 'native' to the image mode operations, so we'll also look at some other general practice we can apply like linting.
+
+Part of this new flow can also include source control.
+Since this application is already in a git repo, we can do our work on a new branch to use for review with the developers.
+
+Get into the developers' repo
+[source,bash,role="execute",subs=attributes+]
+----
+cd bootc-version
+----
+
+Make a new branch in the repo
+[source,bash,role="execute",subs=attributes+]
+----
+git switch -C base-image
+----
+
+Make a copy of the original to make comparisons easier.
+[source,bash,role="execute",subs=attributes+]
+----
+cp Containerfile Containerfile.orig
+----
+
+Here's the Containerfile they've created for the app.
+[source,dockerfile,role="execute",subs=attributes+]
+----
+# Start with the RHEL 10 bootable base image
+FROM registry.redhat.io/rhel10/rhel-bootc:10.1 # <1>
+
+# Install necessary packages from RHEL Application Streams using dnf
+# This includes default Python 3, pip, and Nginx
+RUN dnf install -y \
+    python3 \
+    python3-pip \
+    nginx && \
+    dnf clean all && rm -rf /var/cache/dnf
+
+# Copy the Flask application files and Gunicorn service file
+ADD . /app # <2>
+COPY info-app.service /etc/systemd/system/
+
+# Install requirements via pip3
+RUN pip3 install -r /app/requirements.txt
+
+# --- Nginx Configuration (Example Adaptation) ---
+# Copy a custom Nginx configuration file that acts as a reverse proxy
+# This file needs to be created separately and configured to forward requests
+# to the Gunicorn process (e.g., listening on localhost:80)
+COPY info-app.conf /etc/nginx/conf.d/
+
+# Ensure nginx can talk to gunicorn
+WORKDIR /app # <3>
+RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
+RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
+RUN semodule -i nginx_connect_flask_sock.pp
+RUN mkdir /run/flask-app && chgrp -R nginx /run/flask-app && chmod 770 /run/flask-app
+RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
+
+# Enable our application services
+RUN systemctl enable nginx.service
+RUN systemctl enable info-app.service
+
+RUN <<EORUN # <4>
+    set -exuo pipefail
+    echo "d /var/lib/nginx     770 nginx root -" >> /usr/lib/tmpfiles.d/nginx.conf
+    echo "d /var/lib/nginx/tmp 770 nginx root -" >> /usr/lib/tmpfiles.d/nginx.conf
+    echo "d /var/log/nginx     711 root  root -" >> /usr/lib/tmpfiles.d/nginx.conf
+EORUN
+
+RUN bootc container lint
+----
+<1> Changing to the secured baseline
+<2> How files from the repo are injected into the image
+<3> Compiling an SELinux module from the app directory
+<4> The `nginx` workaround
+
+Other things may present themselves as we go.
+
+First up, the FROM line references the image you've been building and updating during this lab. This means that every bit of customization and software you've installed previously will be available on the host built from this new definition. This style of derived images is something very powerful for collaborating while keeping teams focused on their needs. Different teams can work directly from images built by and certified by others, rather than starting from scratch or trying to integrate and apply controls at the end of a long build process.
+
+Since we're moving to a baseline that's had a compliance policy applied and other changes from the RHT default, we should make sure that this doesn't break anything. Let's just update the working Containerfile to use the base from our registry.
+
+[source,bash,role="execute",subs=attributes+]
+----
+vim Containerfile
+----
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+FROM registry-{guid}.apps.ocpvdev01.rhdp.net/base
+----
+
+Rebuild and push
+And of course push it to the local registry:
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+
+
+[#switch-run]
+== Switch and test the image
+
+Since we had issues with switching in our initial fixes, log into the Security VM to test the new build.
+
+We'll use the same `bootc switch` command we did on the previous system but just let `bootc` restart the host once it's done.
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc switch registry-{guid}.{domain}/app-test:v2 --apply
+----
+
+Once the system is back, check on the application.
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status nginx.service --no-pager
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status info-app.service --no-pager
+----
+
+Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
+
+[source,bash,role="execute",subs=attributes+]
+----
+ss -tnlp
+----
+[source,bash,role="execute",subs=attributes+]
+----
+firewall-cmd --list-services
+----
+[source,bash,role="execute",subs=attributes+]
+----
+firewall-cmd --add-service http
+----
+Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
+
+On build host
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN firewall-offline-cmd -s http
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+With the firewall adressed, we can move on with deeper clean up.
+
+[source,bash,role="execute",subs=attributes+]
+----
+ls -al /app
+----
+....
+total 60
+drwxr-xr-x.  4 root root  357 Jan  1  1970 .
+drwxr-xr-x. 14 root root 4096 Jan  1  1970 ..
+-rw-r--r--.  1 root root 1639 Jan  1  1970 Containerfile.orig
+-rw-r--r--.  1 root root 2482 Jan  1  1970 app.py
+-rw-r--r--.  1 root root  273 Jan  1  1970 config.json
+-rw-r--r--.  1 root root 6513 Jan  1  1970 helpers.py
+-rw-r--r--.  1 root root  351 Jan  1  1970 info-app.conf
+-rw-r--r--.  1 root root  245 Jan  1  1970 info-app.service
+-rw-r--r--.  1 root root  985 Jan  1  1970 nginx_connect_flask_sock.mo
+-rw-r--r--.  1 root root 1001 Jan  1  1970 nginx_connect_flask_sock.pp
+-rw-r--r--.  1 root root  234 Jan  1  1970 nginx_connect_flask_sock.te
+-rw-r--r--.  1 root root  156 Jan  1  1970 requirements.txt
+drwxr-xr-x.  2 root root   67 Jan  1  1970 static
+drwxr-xr-x.  2 root root   49 Jan  1  1970 templates
+....
+
+We have the application but also some intermediate files, a copy of the Containerfile and more. Let's start cleaning up by adding a little structure to the repo.
+
+=== Back on the build host
+
+3 kinds of files, the app, the system configs, and the build configs. 
+
+[source,bash,role="execute",subs=attributes+]
+----
+mkdir app
+----
+[source,bash,role="execute",subs=attributes+]
+----
+mv * app
+----
+
+config files
+[source,bash,role="execute",subs=attributes+]
+----
+mkdir -p etc/systemd/system/
+----
+[source,bash,role="execute",subs=attributes+]
+----
+mkdir -p etc/nginx/conf.d/
+----
+[source,bash,role="execute",subs=attributes+]
+----
+mv app/info-app.service etc/systemd/system
+----
+[source,bash,role="execute",subs=attributes+]
+----
+mv app/info-app.conf etc/nginx/conf.d
+----
+
+Add our nginx tmpfiles fix, but this time to `/etc/tmpfiles.d/`
+[source,bash,role="execute",subs=attributes+]
+----
+mkdir -p etc/tmpfiles.d/
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+nano etc/tmpfiles.d/nginx.conf
+----
+
+[source,shell,role="execute",subs=attributes+]
+----
+d /var/lib/nginx     770 nginx root -
+d /var/lib/nginx/tmp 770 nginx root -
+d /var/log/nginx     711 root  root -
+----
+
+build files
+[source,bash,role="execute",subs=attributes+]
+----
+mv app/Containerfile* .
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+ls -al 
+----
+....
+total 20
+drwxr-xr-x. 5 root root  126 Nov 17 22:18 .
+dr-xr-x---. 7 root root 4096 Nov 17 21:00 ..
+-rw-r--r--. 1 root root  633 Nov 17 20:15 .dockerignore
+drwxr-xr-x. 8 root root  163 Nov 17 20:52 .git
+-rw-r--r--. 1 root root 2439 Nov 17 20:15 .gitignore
+-rw-r--r--. 1 root root 1641 Nov 17 21:00 Containerfile
+-rw-r--r--. 1 root root 1639 Nov 17 20:52 Containerfile.orig
+drwxr-xr-x. 4 root root  164 Nov 17 22:18 app
+drwxr-xr-x. 2 root root   51 Nov 17 22:18 etc
+....
+
+notice all the git repo files stayed put based on the bash glob expansion
+
+Now update the Containerfile:
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+FROM registry-tpzl8.apps.ocpvdev01.rhdp.net/base
+old:
+# Copy the Flask application files and Gunicorn service file
+COPY . /app
+COPY info-app.service /etc/systemd/system/
+
+# Install requirements via pip3
+RUN pip3 install -r /app/requirements.txt
+
+# --- Nginx Configuration (Example Adaptation) ---
+# Copy a custom Nginx configuration file that acts as a reverse proxy
+# This file needs to be created separately and configured to forward requests
+# to the Gunicorn process (e.g., listening on localhost:80)
+COPY info-app.conf /etc/nginx/conf.d/
+
+----
+
+new:
+[source,dockerfile,role="execute",subs=attributes+]
+----
+# Copy the Flask application files
+COPY app/ /app
+
+# Install requirements via pip3
+RUN pip3 install -r /app/requirements.txt
+
+# custom Nginx configuration file that acts as a reverse proxy
+# nginx tmpfiles.d configuration
+# application systemd service defintion
+COPY etc/ /etc
+----
+
+Delete the test at the end of the Containerfile
+
+Build and test (soft reboot)
+
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+
+On Security VM:
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --soft-reboot=required --apply
+----
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl show --value --property SoftRebootsCount
+----
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc status --verbose
+----
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status info-app.service nginx.service
+----

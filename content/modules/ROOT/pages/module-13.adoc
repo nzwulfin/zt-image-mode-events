@@ -1,0 +1,164 @@
+= Never break the chain
+
+Derived images provide easy branching points to customize deployments from common bases.
+However, this can also quickly exceed the ability of a team to manage manually.
+The containerized nature of image mode operations means we can use commonly available application pipeline tools and principles to automate these sorts of issues.
+
+In this lab we'll explore this as we expand on the idea of standardized builds and derived images.
+
+[#write-containerfiles]
+== Updating the base 
+
+A sharp eyed junior noticed that console arguments we passed had a redundant definition.
+On the build host, let's update the config file and remove the duplicate entry.
+
+[source,bash,role="execute",subs=attributes+]
+----
+cd
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+nano console_kargs.conf
+----
+
+[source,shell,role="execute",subs=attributes+]
+----
+kargs = ["console=ttyS0,115200n8"]
+----
+
+[#build]
+== Build and push the image
+
+With any change, leaving some indicator of an update is a good idea. 
+Versioning our images is something we did with the application image, so we'll use a `v1.1` tag for this update since it's a very minor change.
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/base:v1.1
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/base:v1.1
+----
+
+This brings up a question: how does the application image pull in this new change? 
+The `FROM` line of the Containerfile uses the image reference to define the base image.
+The reference is made up of[https://oras.land/docs/concepts/reference/,window=_blank] the registry, the repository with an optional namespace, and the tag. 
+In this lab, we aren't using namespaces, but if you work with `quay.io` or ghcr.io, you may have seen image names that have a username in them.
+If we publish this change with a new tag, that means every Containerfile that references this baseline would need to also be changed.
+Red Hat base images use several tags, a `latest` tag that is attached to the most recent image of a major version, a RHEL version tag eg `10.1` that is attached to the latest base of a particular minor version, and a UNIX epoch timestamped verstion tag eg `10.1-1763458003` that stays with a specific image. 
+At the time of writing, all three of those tags refer to the same image in the Red Hat catalog.
+Tracking static tags provide the most control over updates and image contents, and floating tags provide easier paths for updates.
+[source,bash,role="execute",subs=attributes+]
+----
+podman images base
+----
+....
+REPOSITORY                                   TAG         IMAGE ID      CREATED         SIZE
+registry-n96qr.apps.ocpvdev01.rhdp.net/base  v1.1        dec88a35b72d  17 seconds ago  2.49 GB
+registry-n96qr.apps.ocpvdev01.rhdp.net/base  latest      662065c7c402  35 minutes ago  2.49 GB
+....
+There's several ways to address this, we'll discuss two in this lab.
+
+== Stable tags vs automation
+
+One way to deal with this is through the tags themselves.
+Tags are just special labels associated with an image, and multiple tags can refer to the same image.
+
+We've got one tag now that carries a semantic version, very helpful for people to understand changes at a glance.
+This can update for any change, and signify the impact, like we did for this update.
+
+For our second tag, we can add lifecycle information to indicate where in the SDLC this image is intended to be used: development, testing, or production.
+This would let the teams work together on delivering features and updates at any part of the stack without making changes "visible" where we don't want them.
+
+Tags can be applied on the host with podman and then pushed, but we can also add a tag to the image we just pushed to the registry with `skopeo`.
+Enterprise registries will also have more features for dealing with tags and other image details.
+
+[source,bash,role="execute",subs=attributes+]
+----
+skopeo copy docker://registry-{guid}.{domain}/base:v1.1 docker://registry-{guid}.{domain}/base:prod
+----
+....
+Copying blob bd9ddc54bea9 skipped: already exists  
+Copying config dec88a35b7 done   | 
+Writing manifest to image destination
+....
+
+[source,bash,role="execute",subs=attributes+]
+----
+skopeo list-tags  docker://registry-{guid}.{domain}/base
+----
+....
+{
+    "Repository": "registry-n96qr.apps.ocpvdev01.rhdp.net/base",
+    "Tags": [
+        "v1.1",
+        "prod",
+        "latest"
+    ]
+}
+....
+This may seem like a hassle, which is where processes like GitOps enter the picture.
+Image updates in a registry and providing an updated Containerfile is something developers use tools like `renovatebot` and `dependabot` to track.
+These tools will allow you to track static tags like `10.1-` for full control over when updates are applied, but still make updates easier by eliminating the toil of tracking and updating the tag names.
+The full scope of a GitOps environment is out of the scope of this lab, however you can get more details from our introductory blog post[https://www.redhat.com/en/blog/jumpstart-gitops-image-mode,window=_blank].
+
+Let's update the application Containerfile to track the new `prod` stable tag.
+
+[source,bash,role="execute",subs=attributes+]
+----
+cd bootc-version
+----
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
+
+[source,shell,role="execute",subs=attributes+]
+----
+FROM registry-{guid}.{domain}/base:prod AS host
+----
+No need to update the SELinux stage since that uses base RHEL tools to compile the policy
+
+Build this as a simple update, but the same tagging logic can be applied to any bootc image.
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
+----
+
+The policy stage uses the cache, but the application stage pulls the new image and rebuilds.
+
+And of course push it to the local registry:
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/app-test:v2
+----
+On Security VM:
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update --soft-reboot=required --apply
+----
+....
+layers already present: 74; layers needed: 16 (122.4 MB)
+Fetched layers: 116.78 MiB in 9 seconds (13.17 MiB/s)                                                                    
+  Deploying: done (3 seconds)                                                                                            Pruned images: 0 (layers: 0, objsize: 3.2 MB)
+Queued for next boot: registry-j475j.apps.ocpvdev01.rhdp.net/app-test:v2
+  Version: 10.1
+  Digest: sha256:5e480c9db0438c43d808f4aba8277fcdc0a2b69351fa6557e6fd5566a9aa6690
+Total new layers: 88    Size: 1.3 GB
+Removed layers:   16    Size: 122.4 MB
+Added layers:     16    Size: 122.4 MB
+error: Upgrading: Handling staged soft reboot: Handling soft reboot: Soft reboot was required but staged deployment is not soft-reboot capable
+....
+
+We made a change that can only be affected by a full reboot, so `soft-reboot` will error.
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc status
+----
+The staging of the update was successful however and we can simply reboot. 
+The only thing we couldn't do was the soft relaunch of userspace. 
+The atomic nature of the updates let's us try to soft-reboot all the time and be notified when a hard reboot is required.
