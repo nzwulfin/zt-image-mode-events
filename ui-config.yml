@@ -42,8 +42,17 @@ antora:
     - name: "module-13"
       label: "Dev mod movin day"
       solveButton: false
+    - name: "module-drivers"
+      label: "Platform targets"
+      solveButton: false
     - name: "module-14"
-      label: "Extra dev mod"
+      label: "Scratch builds"
+      solveButton: false
+    - name: "module-15"
+      label: "Rechunk"
+      solveButton: false
+    - name: "module-16"
+      label: "Reproducibility"
       solveButton: false
 
 tabs:

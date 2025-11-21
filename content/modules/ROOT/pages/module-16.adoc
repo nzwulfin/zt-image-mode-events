@@ -1,0 +1,303 @@
+= Reproducible builds
+
+In addition to simplifying updates and providing native rollback, operating RHEL in image mode also 
+makes it simple to quickly change the purpose of a running system. This means experimenting with new 
+versions of application components or testing OS updates is as simple as applying any other image change.
+
+In this lab we'll explore this feature as well as expand on the idea of standardized builds and derived images.
+
+[#write-containerfiles]
+== Building from the standard base
+
+  vim Containerfile.bootc 
+  ARG SOURCE_DATE_EPOCH
+  podman build -t non-repro-1 -f Containerfile.bootc --no-cache
+  podman build -t non-repro-2 -f Containerfile.bootc --no-cache
+  podman inspect --format '{{.Digest}}' non-repro-1 non-repro-2
+  export SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)
+  echo $SOURCE_DATE_EPOCH
+  podman build  --source-date-epoch=${SOURCE_DATE_EPOCH} --rewrite-timestamp \
+  -t repro-1 -f Containerfile.bootc --no-cache
+  podman build  --source-date-epoch=${SOURCE_DATE_EPOCH} --rewrite-timestamp \
+  -t repro-2 -f Containerfile.bootc --no-cache
+
+Instead of just running a webserver, what if we needed to run WordPress instances, and our developers need
+those to be containerized? Normally, that would start the hunt for available infrastructure, an examination of the software needed to support the containers, changes to automation, deploying new machines to support the testing, and a lot of back and forth between the different teams. 
+
+With image mode, a few new options are available. The developers can take a standard build that has `podman` available, add their container configurations, and pick an existing host to run the image. If they have problems or if they need to change the host back to it's previous role, that's as simple as a rollback.
+
+Let's explore how that can work by creating a new Containerfile with the following contents.
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile.wp
+----
+
+[source,dockerfile,role="execute",subs=attributes+]
+----
+FROM registry-{guid}.{domain}/httpd
+
+RUN dnf -y install lynx
+
+ADD wordpress-quadlet/etc/ /etc
+ADD wordpress-quadlet/usr/ /usr
+----
+
+For an 'advanced` configuration, this doesn't have a lot in it, what's happening?
+
+First up, the FROM line references the image you've been building and updating during this lab. This means that every bit of customization and software you've installed previously will be available on the host built from this new definition. This style of derived images is something very powerful for collaborating while keeping teams focused on their needs. Different teams can work directly from images built by and certified by others, rather than starting from scratch or trying to integrate and apply controls at the end of a long build process.
+
+Remember the `ADD` directive pulls full directories into the image at build time. So most of the work here is 
+somehow being done in `/usr` or `/etc`, let's see what's in there.
+
+[source,bash,role="execute",subs=attributes+]
+----
+ls -lahR wordpress-quadlet/etc/ wordpress-quadlet/usr/
+----
+
+The "hidden" part is the use of quadlets to run containers. A full description of quadlets is outside the scope 
+of this lab, but in short, a quadlet is a way to run a container (or group of containers in this case) as a systemd service. 
+
+In `wordpress-quadlet/etc/` we have a configuration file for the caddy server, a Golang HTTPS server acting as a proxy, and a file of environment variables to be passed to the quadlet.
+
+In `wordpress-quadlet/usr/share/containers/systemd/` we have all of the files that define the quadlet. The `.container` file defines each of the containers for systemd to run. These are typical systemd unit files, aside from the `[Container]` block which is unique to quadlets.
+
+Feel free to explore these files and directories before moving on.
+
+[#build]
+== Build and push the image
+
+When we build this image, we will use a new name to denote it's new purpose. Your naming and tagging conventions should aim to convey information to the people who need them as much as providing hooks to automate and control visibility to hosts.
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile.wp --tag registry-{guid}.{domain}/caddy-wp
+----
+And of course push it to the local registry:
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/caddy-wp
+----
+
+Notice that even though we used a new tag for this image, the push still used cached layers. This is an advantage of stacking images in a standard build design.
+
+You can now login to the virtual machine:
+
+[source,bash,role="execute",subs=attributes+]
+----
+ssh {vm_user}@qcow-vm
+----
+
+[#switch-run]
+== Switch and test the image
+
+After the new container image has been pushed to the local registry, you can `switch` the bootc image to the WordPress one. This `bootc` command is how we change what image to follow for updates. From here on, any changes made to the original `httpd` image would not show up as an available update, only changes to the new `caddy-wp` image.
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc switch registry-{guid}.{domain}/caddy-wp
+----
+
+From a status perspective, a switch looks the same as an update. There's a new deployment that's been staged and prepared for the next boot, but the image reference is completely different.
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc status
+----
+....
+  Staged image: node.prk8w.gcp.redhatworkshops.io/caddy-wp
+        Digest: sha256:f139ae15566be551658c239eaadbdbc9ff3db72338cf41a7c85e5574903dad86
+       Version: 9.6 (2025-05-15 14:16:09.629889448 UTC)
+
+● Booted image: node.prk8w.gcp.redhatworkshops.io/httpd:10.0
+        Digest: sha256:5411c8f3d00f20ca500952b61a25d482a61e33d00df146f01c9aff28a2944400
+       Version: 10.0 (2025-05-15 13:57:13.220163203 UTC)
+
+  Rollback image: node.prk8w.gcp.redhatworkshops.io/httpd
+          Digest: sha256:daeb8ddb6ad93a842488b216d4816054db1f70b8f811adbb906e5d6b5634e65c
+         Version: 9.6 (2025-05-15 13:37:00.922495571 UTC)
+....
+
+As usual, after the command is done you need to reboot the virtual machine
+for the changes to take effect. Before doing that, please make sure you are logged in to the
+virtual machine and not the hypervisor (the prompt should look like `[{vm_user}@qcow-vm ~]$`):
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo systemctl reboot
+----
+
+After a short while, you can log back in to the virtual machine:
+
+[source,bash,role="execute",subs=attributes+]
+----
+ssh {vm_user}@qcow-vm
+----
+
+[#layers]
+== Troubleshooting derived builds
+
+Check on the status of our newly created quadlet by checking the caddy proxy server and what it inherited from the standard build. 
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo systemctl status caddy.service --no-pager
+journalctl -t caddy
+----
+....
+Jul 24 14:40:30 qcow-vm systemd[1]: caddy.service: Failed with result 'exit-code'.
+Jul 24 14:40:30 qcow-vm systemd[1]: Failed to start Caddy Quadlet.
+
+Jul 24 14:40:25 qcow-vm caddy[1347]: Error: cannot listen on the TCP port: listen tcp4 :80: 
+Jul 24 14:40:27 qcow-vm caddy[1780]: Error: cannot listen on the TCP port: listen tcp4 :80:
+....
+
+We weren't prompted for our sudo password, but it looks like our new caddy server couldn't bind to port 80 
+when it tried to start.  What's going on? The answer to both lies in the image we built from. 
+
+If we check the status of Apache, we can see that it is indeed running and listening on port 80.
+
+[source,bash,role="execute",subs=attributes+]
+----
+systemctl status httpd.service --no-pager
+----
+
+If you look at the original Containerfile, you'll recall we set Apache to start at boot:
+
+[source,dockerfile]
+----
+RUN systemctl enable httpd.service
+----
+
+Since local changes to /etc are kept by `bootc` when changing images, httpd stayed enabled on 
+this new host as well. Let's disable it and restart caddy.
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo systemctl disable --now httpd.service
+sudo systemctl restart caddy.service
+sudo systemctl status caddy.service
+----
+....
+Removed "/etc/systemd/system/multi-user.target.wants/httpd.service".
+
+● caddy.service - Caddy Quadlet
+     Loaded: loaded (/usr/share/containers/systemd/caddy.container; generated)
+     Active: active (running) since Wed 2024-07-24 14:42:21 UTC; 6s ago
+....
+
+It looks like caddy started, let's check to see that it's passing requests to the WordPress 
+container in the quadlet. Curl will dump a mess of HTML and we don't have a GUI, but that's why we installed the Lynx browser.
+
+[source,bash,role="execute",subs=attributes+]
+----
+lynx localhost
+----
+
+You should see the WordPress configuration dialog box. You can hit `Q` (Shift + q) to quit lynx and then log out of the VM.
+[source,bash,role="execute",subs=attributes+]
+----
+logout
+----
+
+== Disable the service and rebuild with new tag?
+
+That solution is fine for this host, but how to we fix it in the image? The answer depends on the goal and how container layers operate.  
+
+The simplest solution would be to stop the service from starting. You may find there are other services in the base image you may want to disable in certain downstream images as well. One way to stop these sorts of services from activation, especially those defined in `/usr/lib/systemd/system`, is with masking.
+
+Let's add a `heredoc` to our Containerfile to tell systemd to mask the httpd service and the bootc update timer.
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile.wp
+----
+[source,dockerfile,role="execute",subs=attributes+]
+----
+FROM registry-{guid}.{domain}/httpd
+
+RUN dnf -y install lynx
+
+ADD wordpress-quadlet/etc/ /etc
+ADD wordpress-quadlet/usr/ /usr
+
+RUN <<EORUN
+     set -euxo pipefail
+     systemctl mask httpd.service 
+     systemctl mask bootc-fetch-apply-updates.timer 
+EORUN
+----
+
+This means these services won't even be able to be started manually.
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman build --file Containerfile.wp --tag registry-{guid}.{domain}/caddy-wp:V2
+----
+And of course push it to the local registry:
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/caddy-wp:V2
+----
+
+The name of the image has stayed the same, but we've now added the `V2` to add some semantic versioning. Tags are part of how `bootc` keeps track of images, which is important when it comes to updates. Since this is a new tag, we would need to `switch` to it in order to use it, just like we did the first time. This might be fine, especially since we've turned off auto-updates. 
+
+We can check this by having `bootc` look for an update. Notice the new `V2` image isn't seen.
+[source,bash,role="execute",subs=attributes+]
+----
+ssh core@qcow-vm sudo bootc update
+----
+....
+No changes in node.545jj.gcp.redhatworkshops.io/caddy-wp => sha256:c15b09203ea36a342135cc2d1c061ea96c0b61f4e5c46fd38bc8afe3f6c787a0
+No update available.
+....
+Remember from the OS base image discussion that an image can have multiple tags associated with it, and `bootc` can track an single tag for an image. To make this new image appear as be an update, then we can add a tag to this new image that matches what `bootc` is currently tracking. 
+
+Since we haven't been adding tags to any of our previous builds, they all have the default latest tag automatically applied.
+[source,bash,role="execute",subs=attributes+]
+----
+podman images registry-{guid}.{domain}/caddy-wp
+----
+You can see both of our caddy images, and the tags associated with them. To make `V2` appear as an available update, add the `latest` tag to that image. The first image is the one to operate on, and the second is the complete target name you want to apply. This can be used in a lot of ways, for example to build all images locally without any registry, organization, and tag info and add that only to specific builds that are ready to be pushed to a registry.
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman image tag registry-{guid}.{domain}/caddy-wp:V2 registry-{guid}.{domain}/caddy-wp:latest
+----
+
+This changed the tag locally, so we need to push the newly tagged image to the registry to pick up the change there. You'll notice all of the layers are skipped since this is really just a metadata change.
+[source,bash,role="execute",subs=attributes+]
+----
+podman push registry-{guid}.{domain}/caddy-wp:latest
+----
+
+Logging back into the VM, you should see an update available for the `caddy-wp` image with the one layer that has our change.
+[source,bash,role="execute",subs=attributes+]
+----
+ssh {vm_user}@qcow-vm
+----
+
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc update
+----
+Feel free to apply the update and test the changes.
+
+
+Before proceeding to the next exercise, make sure you have logged out of the virtual machine:
+
+[source,bash,role="execute",subs=attributes+]
+----
+logout
+----
+
+== Core principles
+Easy updates, rollbacks, and image switching are part of the core improvements to the operation of 
+image mode systems. Layering is an important part of the design of standard builds and can have some 
+downstream effects as well. Just like stacking configuration management, thinking through the idea of 
+layered builds can be powerful.
+
+In this lab we've covered the very basics of image mode to get you started in your exploration of what this can do for you and your environment. There's a lot we haven't covered, like compliance, managing kernel arguments, integrating with other tools like Ansible or Satellite, and much more. Image mode is just leaving tech preview, so there's a full roadmap of improvements to come.
+
+We've got other ways to learn more, including https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_image_mode_for_rhel_to_build_deploy_and_manage_operating_systems/introducing-image-mode-for-rhel_using-image-mode-for-rhel-to-build-deploy-and-manage-operating-systems[documentation^], https://github.com/redhat-cop/rhel-bootc-examples[example snippets^], https://github.com/redhat-cop/redhat-image-mode-demo[other exercises^], and more.
+
+In the next modules, we'll add a little more color to ways image mode can be used.
