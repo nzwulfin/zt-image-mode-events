@@ -17,7 +17,7 @@ scratch build with standard packages and configs
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Begin with a standard bootc base image that serves as a "builder" for our custom image.
-FROM registry.redhat.io/rhel10/rhel-bootc:latest
+FROM registry.redhat.io/rhel10/rhel-bootc:10.1 AS builder
 # Build the root file system by using the specified repositories and non-RPM content from the "builder" base image.
 # If no repositories are defined, the default build will be used. You can modify the scope of packages in the base image by changing the manifest between the "standard" and "minimal" sets.
 RUN /usr/libexec/bootc-base-imagectl build-rootfs --manifest=standard /target-rootfs
@@ -47,13 +47,16 @@ CMD ["/sbin/init"]
 
 # Run the bootc linter to avoid encountering certain bugs and maintain content quality. Place this command last in your Containerfile.
 RUN bootc container lint
----
+----
+podman build -t scratch -f Containerfile.scratch --cap-add=all --security-opt=label=type:container_runtime_t --device /dev/fuse
 
+You can see that seemingly simple builder image does a huge amount of work setting up the base filesystem.
+It also installed 400+ packages, since this is the specification for the standard base image RHT ships.
 We also provide a minimal manifest that has even fewer packages selected. 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Begin with a standard bootc base image that is reused as a "builder" for the custom image.
-FROM registry.redhat.io/rhel10/rhel-bootc:latest
+FROM registry.redhat.io/rhel10/rhel-bootc:10.1 AS builder
 # Build the root file system by using the specified repositories and non-RPM content from the "builder" base image.
 RUN /usr/libexec/bootc-base-imagectl build-rootfs --manifest=minimal /target-rootfs
 
