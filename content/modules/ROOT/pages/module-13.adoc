@@ -22,6 +22,7 @@ cd
 nano console_kargs.conf
 ----
 
+Remove the first "console" argument in the list.
 [source,shell,role="execute",subs=attributes+]
 ----
 kargs = ["console=ttyS0,115200n8"]
@@ -44,8 +45,9 @@ podman push registry-{guid}.{domain}/base:v1.1
 
 This brings up a question: how does the application image pull in this new change? 
 The `FROM` line of the Containerfile uses the image reference to define the base image.
-The reference is made up of[https://oras.land/docs/concepts/reference/,window=_blank] the registry, the repository with an optional namespace, and the tag. 
+The reference https://oras.land/docs/concepts/reference/[is made up of ,window=_blank] the registry, the repository with an optional namespace, and the tag. 
 In this lab, we aren't using namespaces, but if you work with `quay.io` or ghcr.io, you may have seen image names that have a username in them.
+
 If we publish this change with a new tag, that means every Containerfile that references this baseline would need to also be changed.
 Red Hat base images use several tags, a `latest` tag that is attached to the most recent image of a major version, a RHEL version tag eg `10.1` that is attached to the latest base of a particular minor version, and a UNIX epoch timestamped verstion tag eg `10.1-1763458003` that stays with a specific image. 
 At the time of writing, all three of those tags refer to the same image in the Red Hat catalog.
@@ -59,7 +61,7 @@ REPOSITORY                                   TAG         IMAGE ID      CREATED  
 registry-n96qr.apps.ocpvdev01.rhdp.net/base  v1.1        dec88a35b72d  17 seconds ago  2.49 GB
 registry-n96qr.apps.ocpvdev01.rhdp.net/base  latest      662065c7c402  35 minutes ago  2.49 GB
 ....
-There's several ways to address this, we'll discuss two in this lab.
+There's several ways to address managing changes to images, we'll discuss two in this lab.
 
 == Stable tags vs automation
 
@@ -99,22 +101,23 @@ skopeo list-tags  docker://registry-{guid}.{domain}/base
     ]
 }
 ....
-This may seem like a hassle, which is where processes like GitOps enter the picture.
+This may seem like a hassle, which is where the second method enters the picture: processes like GitOps based automation.
 Image updates in a registry and providing an updated Containerfile is something developers use tools like `renovatebot` and `dependabot` to track.
 These tools will allow you to track static tags like `10.1-` for full control over when updates are applied, but still make updates easier by eliminating the toil of tracking and updating the tag names.
-The full scope of a GitOps environment is out of the scope of this lab, however you can get more details from our introductory blog post[https://www.redhat.com/en/blog/jumpstart-gitops-image-mode,window=_blank].
+The full scope of a GitOps environment is out of the scope of this lab, however you can get more details from https://www.redhat.com/en/blog/jumpstart-gitops-image-mode[our introductory blog post ,window=_blank].
 
 Let's update the application Containerfile to track the new `prod` stable tag.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-cd bootc-version
+cd ~/bootc-version
 ----
 [source,bash,role="execute",subs=attributes+]
 ----
 nano Containerfile
 ----
 
+Find the second stage `FROM` line and add the new tag.
 [source,shell,role="execute",subs=attributes+]
 ----
 FROM registry-{guid}.{domain}/base:prod AS host
@@ -157,7 +160,7 @@ We made a change that can only be affected by a full reboot, so `soft-reboot` wi
 
 [source,bash,role="execute",subs=attributes+]
 ----
-sudo bootc status
+sudo bootc status -v
 ----
 The staging of the update was successful however and we can simply reboot. 
 The only thing we couldn't do was the soft relaunch of userspace. 

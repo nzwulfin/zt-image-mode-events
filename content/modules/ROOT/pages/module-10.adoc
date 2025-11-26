@@ -2,34 +2,43 @@
 
 In addition to simplifying updates and providing native rollback, operating RHEL in image mode also makes it simple to quickly change the purpose of a running system.
 
-This means experimenting with new versions of application components or testing OS updates is as simple as applying any other image change.
+The `switch` operation allows adminstrators to change the system software to a different image, while keeping local system configuration and data intact.
 
 In this lab we'll explore this feature as well as expand on the idea of standardized builds and derived images.
 
 [#write-containerfiles]
 == Testing the developers bug report
 
-The developers have built a version of their app using the Red Hat provided base image that works on initial install but not when switching an existing image mode host. 
-Why?
+While testing their proof of concept, the developers found that the image they created worked fine when a machine was newly installed.
+To help save time, they wanted to repurpose a few other image mode machines instead of requesting brand new infrastructure.
+When they switched the running machine, the application wouldn't start.
+They only had a RHEL 9.6 host to test, and they weren't sure if moving to RHEL 10.1 was part of the problem.
 
-First, let's add linting and then build a copy to test the switch.
-
+Change to th git repository for the application with the bootc Containerfile, cloned onto the build host.
 [source,bash,role="execute",subs=attributes+]
 ----
-cd bootc-version
+cd ~/bootc-version
 ----
+
+First, let's add linting and then build a fresh copy to test the switch on our own RHEL 9.6 host.
 [source,bash,role="execute",subs=attributes+]
 ----
 nano Containerfile
 ----
+
+Add the following line as the last instruction in the Containerfile.
+We always want linting to be the final step in a build.
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 RUN bootc container lint
 ----
 
+The linter is designed to issue warnings about potential problems and will error and stop the build if there is something that would stop an image mode host from operating. 
+Some warnings are harmless, but others could point to issues with certain types of operations during the lifetime of a host.
+
 == Build and push the image
 
-When we build this image, we will use a new name to denote it's new purpose. Your naming and tagging conventions should aim to convey information to the people who need them as much as providing hooks to automate and control visibility to hosts.
+When we build this image, we will use a new name to denote its new purpose. Your naming and tagging conventions should aim to convey information to the people who need them as much as providing hooks to automate and control visibility to hosts.
 
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -60,9 +69,11 @@ Found non-directory/non-symlink files in /var:
   var/lib/rhsm/productid.js
   ...and 66 more
 ....
-[#build]
-This may be the culprit, let's push it to the local registry and find out:
 
+There's quite a few warnings, so our culprit may be in there. 
+[#build]
+
+Push this image to the registry so we can use it to test on our existing target host.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman push registry-{guid}.{domain}/app-test
@@ -72,19 +83,22 @@ podman push registry-{guid}.{domain}/app-test
 [#switch-run]
 == Switch and test the image
 
-After the new container image has been pushed to the local registry, you can `switch` the bootc image to the WordPress one. This `bootc` command is how we change what image to follow for updates. From here on, any changes made to the original `httpd` image would not show up as an available update, only changes to the new `app-test` image.
+Change to the tab labeled "Test image mode host".
 
+You saw earlier how `bootc` tracks the image in the registry to find updates.
+To change to a different image, use the `bootc switch` command to provide a different image specification.
+We'll use it to change into the testing image we just pushed to the registry.
 [source,bash,role="execute",subs=attributes+]
 ----
 bootc switch registry-{guid}.{domain}/app-test
 ----
 NOTE: You may see warnings about Non-ASCII characters, this is a side effect of moving a RHEL 9 host to RHEL 10, and doesn't affect the host.
 
-From a status perspective, a switch looks the same as an update. There's a new deployment that's been staged and prepared for the next boot, but the image reference is completely different.
+From an output perspective, a switch looks the same as an update. There's a new deployment that's been staged and prepared for the next boot, but the image reference is completely different.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-bootc status
+bootc status -v
 ----
 ....
   Staged image: registry-bcsvm.apps.ocpvdev01.rhdp.net/app-test
@@ -96,26 +110,20 @@ bootc status
        Version: 9.6 (2025-09-08 18:56:51.120175635 UTC)
 ....
 
-As usual, after the command is done you need to reboot the virtual machine
-for the changes to take effect. Before doing that, please make sure you are logged in to the
-virtual machine and not the hypervisor (the prompt should look like `[{vm_user}@qcow-vm ~]$`):
+Since this is a major change that includes a different kernel among other things, notice that the option to soft reboot here is blocked.
+Issue a full reboot to finalize the switch, making sure you're on the right host.
 
 [source,bash,role="execute",subs=attributes+]
 ----
 systemctl reboot
 ----
 
-After a short while, you can log back in to the virtual machine:
-
-[source,bash,role="execute",subs=attributes+]
-----
-ssh {vm_user}@qcow-vm
-----
+After a short while, you can log back in to the virtual machine by clicking `reconnect` or using the refresh button in the tab.
 
 [#layers]
 == Troubleshooting derived builds
 
-Check on the status of our newly created quadlet by checking the caddy proxy server and what it inherited from the standard build. 
+You should see the failed nginx unit on login, so check the status output of the service to see what happened.
 ....
 [systemd]
 Failed Units: 1
@@ -133,27 +141,29 @@ Nov 17 16:18:10 imrhel nginx[1078]: 2025/11/17 16:18:10 [emerg] 1078#1078: mkdir
 Nov 17 16:18:10 imrhel nginx[1078]: nginx: configuration file /etc/nginx/nginx.conf test failed
 ....
 
-Looks like that was our culprit but why?
+Looks the culprit is nginx missing its `/var` file structure but why does that not happen when the developers provision a new machine?
 
-In an image mode system, `bootc` manages available images on disk for updates and rollbacks. 
-Behind the scenes, `bootc` handles the following directories differently, which is what allows for the seamless update and rollback experience. 
+In an image mode system, `bootc` handles the following directories differently, which is what allows for the seamless update and rollback experience. 
 
   * `/usr` -> image state, contents of the image will be extracted and overwrite local files
   * `/etc` -> local configuration state, contents of the image are merged with a preference for local files
   * `/var` -> local state, contents of the image will be ignored after the initial installation of any image
 
-At install, initial nginx logs and workfing files went in `/var` which means after it was unpacked from the original image, `bootc` treated it as local machine state. 
-So the directories created by the RPM install aren't created on the running host, which explains why a fresh install launches the app but a switch fails. 
+At install, initial nginx logs and workfing files created during the build went in `/var` which means after it was unpacked from the original image, `bootc` treated it as local machine state. 
+So the directories created by the RPM aren't created on the running host, which explains why a fresh install launches the app but a switch fails. 
 This is one of the new mental models that needs to be adopted to handle image mode operations. 
-We don't expect you to handle all of these manually. 
-Uppstream packages have been moving to use `systemd tmpfiles` and `systemd sysusers` to handle user and file creation for some time.
+
+If `/var` is hands-off after initial provisioning, how can you account for common directories that need to be present in `/var` on all systems?
+By using `systemd tmpfiles` to manage them at boot.
+
+We don't expect you to handle all of these cases manually. 
+Upstream packages have been moving to use `systemd tmpfiles` and `systemd sysusers` to handle user and file creation for some time.
 The introduction of image mode has put some pressure on this migration, but you can already see the `nginx` package https://src.fedoraproject.org/rpms/nginx/blob/aff374fc9038f31a53370f5779f4d03df8fbbc6d/f/nginx.tmpfiles[already has a fix upstream.]
 
 == Workaround rebuild
 
-Let's use that to create a local version of nginx.tmpfiles in the system location. 
+Let's use the upstream fix to create a local version of nginx.tmpfiles in the system location. 
 This means when the new RPM lands, we can just remove this from our Containerfile and the system will continue to work as expected.
-
 
 Let's add a `heredoc` just before the linter in the Containerfile to create the new file for testing.
 [source,bash,role="execute",subs=attributes+]
@@ -171,9 +181,12 @@ EORUN
 ----
 
 Using the `heredoc` let's us run multiple commands as a single layer and can be very handy.
-Since this is executed like any other shell `heredoc`, we need to use some `set` magic to make sure a failure here stops the build.
+Since this is executed during a build like any other shell `heredoc`, we need to use some `set` magic to make sure a failure here stops the build.
 
-We'll use a new tag test that `systemd` will handle the directory creation on a switch and our app now starts.
+To test that `systemd` will handle the directory creation on a switch and let the app now start, we'll build this image with a new tag.
+
+TIP: Another option would be to rollback the target host and reuse the same default `latest` tag. The outcome on the switch executed on the host would be the same.
+
 [source,bash,role="execute",subs=attributes+]
 ----
 podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
@@ -194,13 +207,14 @@ And of course push it to the local registry:
 podman push registry-{guid}.{domain}/app-test:v2
 ----
 
-YOLO the switch
+Let's use the `--apply` flag and immediately execute the reboot instead of checking the status first.
 [source,bash,role="execute",subs=attributes+]
 ----
 bootc switch registry-{guid}.{domain}/app-test:v2 --apply
 ----
 
-Logging in no errors, check on `nginx`
+After a short while, you can log back in to the virtual machine by clicking `reconnect` or using the refresh button in the tab.
+There's no systemd warning on login, so check the status of nginx and the application.
 [source,bash,role="execute",subs=attributes+]
 ----
 systemctl status nginx.service --no-pager
@@ -216,18 +230,15 @@ Nov 17 17:03:34 imrhel systemd[1]: Started nginx.service - The nginx HTTP and re
 ----
 systemctl status info-app.service --no-pager
 ----
-Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
+As a final sanity check, is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
 
 The host details page is up and running on the test host. With that solved, we can start on migrating the app from the Red Hat base to our corporate baseline.
 
 
 == Core principles
 Easy updates, rollbacks, and image switching are part of the core improvements to the operation of image mode systems. 
+Knowing how changes to the filesystem are managed by `bootc` is important to navigating the differences between image mode and package mode.
+
 Layering is an important part of the design of standard builds and can have some downstream effects as well. 
 Just like stacking configuration management, thinking through the idea of layered builds can be powerful.
-
-In this lab we've covered the very basics of image mode to get you started in your exploration of what this can do for you and your environment. There's a lot we haven't covered, like compliance, managing kernel arguments, integrating with other tools like Ansible or Satellite, and much more. Image mode is just leaving tech preview, so there's a full roadmap of improvements to come.
-
-We've got other ways to learn more, including https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_image_mode_for_rhel_to_build_deploy_and_manage_operating_systems/introducing-image-mode-for-rhel_using-image-mode-for-rhel-to-build-deploy-and-manage-operating-systems[documentation^], https://github.com/redhat-cop/rhel-bootc-examples[example snippets^], https://github.com/redhat-cop/redhat-image-mode-demo[other exercises^], and more.
-
-In the next modules, we'll add a little more color to ways image mode can be used.
+In the next exercises, we'll dig deeper into derived builds for the application.

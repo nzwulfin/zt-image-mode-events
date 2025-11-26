@@ -1,40 +1,38 @@
-= changing to our new baseline
+= Defining standard operating environments
 
 In this lab we'll expand on the idea of standardized builds and derived images.
 
 [#write-containerfiles]
 == Building from the standard base
 
-With image mode, a few new options are available. The developers can take a standard build that has all of the operations tools available, security policies applied, add their application. This ensures a common experience across the teams, making Troubleshooting and design smoother. 
+With image mode, a few new options are available. 
+The developers can take a standard build that has all of the operations tools available, security policies applied, add their application. 
+This ensures a common experience across the teams, making troubleshooting and design smoother. 
 
-Starting with a Containerfile solved the `works on my machine` problem in a new way. 
+Starting with their Containerfile solved the `works on my machine` problem in a new way. 
 Reproducing the issue was extremly simple with a known starting point.
 In fact, instead of starting with the Containerfile, we could have used the exact image for our testing and ensured reproducability.
 
-the developers have also asked for some help making the build a little more 'native' to the image mode operations, so we'll also look at some other general practice we can apply like linting.
+With the application starting, we now need to move the proof of concept from the Red Hat provided base image to the baseline created during this lab.
 
-Part of this new flow can also include source control.
 Since this application is already in a git repo, we can do our work on a new branch to use for review with the developers.
+The developers also wanted to know if there were any common patterns for the Containerfile that could be shared.
 
-Get into the developers' repo
+Make sure you're in the git repository for the application.
 [source,bash,role="execute",subs=attributes+]
 ----
-cd bootc-version
+cd ~/bootc-version
 ----
 
-Make a new branch in the repo
+Make a new branch in the repo to track the changes and make collaborating simpler.
 [source,bash,role="execute",subs=attributes+]
 ----
 git switch -C base-image
 ----
 
-Make a copy of the original to make comparisons easier.
-[source,bash,role="execute",subs=attributes+]
-----
-cp Containerfile Containerfile.orig
-----
+We didn't read through the Containerfile before we built it, so let's review it now.
+The annotations mark the list of changes we'll work through in the rest of the lab.
 
-Here's the Containerfile they've created for the app.
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Start with the RHEL 10 bootable base image
@@ -49,7 +47,7 @@ RUN dnf install -y \
     dnf clean all && rm -rf /var/cache/dnf
 
 # Copy the Flask application files and Gunicorn service file
-ADD . /app # <2>
+COPY . /app # <2>
 COPY info-app.service /etc/systemd/system/
 
 # Install requirements via pip3
@@ -82,16 +80,23 @@ EORUN
 
 RUN bootc container lint
 ----
-<1> Changing to the secured baseline
-<2> How files from the repo are injected into the image
-<3> Compiling an SELinux module from the app directory
-<4> The `nginx` workaround
+<1> Change to the secured baseline
+<2> Explore how files from the repo are injected into the image
+<3> Compiling a custom SELinux module for the application
+<4> The `nginx` workaround we created
 
 Other things may present themselves as we go.
 
-First up, the FROM line references the image you've been building and updating during this lab. This means that every bit of customization and software you've installed previously will be available on the host built from this new definition. This style of derived images is something very powerful for collaborating while keeping teams focused on their needs. Different teams can work directly from images built by and certified by others, rather than starting from scratch or trying to integrate and apply controls at the end of a long build process.
+=== Derived images
 
-Since we're moving to a baseline that's had a compliance policy applied and other changes from the RHT default, we should make sure that this doesn't break anything. Let's just update the working Containerfile to use the base from our registry.
+First up, the FROM line references the image you've been building and updating during this lab. 
+This means that every bit of customization and software you've installed previously will be available on the host built from this new definition. 
+This style of derived images is something very powerful for collaborating while keeping teams focused on their needs. 
+Different teams can work directly from images built by and certified by others, rather than starting from scratch or trying to integrate and apply controls at the end of a long build process.
+This also means less duplication of long Containerfiles for common software and configuration.
+
+Since we're moving to a baseline that's had a compliance policy applied and other changes from the RHT default, we should make sure that this doesn't break anything. 
+Let's just update the working Containerfile to use the base from our registry and test that first.
 
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -103,12 +108,13 @@ vim Containerfile
 FROM registry-{guid}.apps.ocpvdev01.rhdp.net/base
 ----
 
-Rebuild and push
-And of course push it to the local registry:
+We'll continue to test using the `v2` tag.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 ----
+
+Once built, push it to the registry.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman push registry-{guid}.{domain}/app-test:v2
@@ -118,9 +124,10 @@ podman push registry-{guid}.{domain}/app-test:v2
 [#switch-run]
 == Switch and test the image
 
-Since we had issues with switching in our initial fixes, log into the Security VM to test the new build.
+Since we had issues with switching in our initial troubleshooting, log into the Security VM to test the new build.
 
-We'll use the same `bootc switch` command we did on the previous system but just let `bootc` restart the host once it's done.
+We'll use the same `bootc switch` command we did on the previous system and just let `bootc` restart the host once it's done.
+
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc switch registry-{guid}.{domain}/app-test:v2 --apply
@@ -153,24 +160,10 @@ firewall-cmd --add-service http
 ----
 Is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
 
-On build host
-[source,bash,role="execute",subs=attributes+]
-----
-nano Containerfile
-----
-[source,dockerfile,role="execute",subs=attributes+]
-----
-RUN firewall-offline-cmd -s http
-----
-[source,bash,role="execute",subs=attributes+]
-----
-podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
-----
-[source,bash,role="execute",subs=attributes+]
-----
-podman push registry-{guid}.{domain}/app-test:v2
-----
-With the firewall adressed, we can move on with deeper clean up.
+The CIS profile turned on the firewall which wasn't configured in the original developer image.
+We'll need to handle that in the new derived build.
+
+With the initial test of the secured baseline done, let's move to the next item on the list: what files are getting copied to the host as part of the application repository.
 
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -180,7 +173,6 @@ ls -al /app
 total 60
 drwxr-xr-x.  4 root root  357 Jan  1  1970 .
 drwxr-xr-x. 14 root root 4096 Jan  1  1970 ..
--rw-r--r--.  1 root root 1639 Jan  1  1970 Containerfile.orig
 -rw-r--r--.  1 root root 2482 Jan  1  1970 app.py
 -rw-r--r--.  1 root root  273 Jan  1  1970 config.json
 -rw-r--r--.  1 root root 6513 Jan  1  1970 helpers.py
@@ -194,22 +186,28 @@ drwxr-xr-x.  2 root root   67 Jan  1  1970 static
 drwxr-xr-x.  2 root root   49 Jan  1  1970 templates
 ....
 
-We have the application but also some intermediate files, a copy of the Containerfile and more. Let's start cleaning up by adding a little structure to the repo.
+We have the application but also some intermediate files, a copy of the Containerfile and more. 
+We should only have the actual application files here, with the configs in the right places on the host.
+We can fix that by adding a little structure to the repo.
 
 === Back on the build host
 
-3 kinds of files, the app, the system configs, and the build configs. 
+Make sure you're in the git repository for the application.
+[source,bash,role="execute",subs=attributes+]
+----
+cd ~/bootc-version
+----
+
+There are 3 kinds of files the developers created: the app, the system configs, and the build configs. 
+Let's create some direhttps://developers.redhat.com/articles/2025/11/17/image-mode-rhel-10-updates-seconds-soft-rebootctories that match those types.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-mkdir app
-----
-[source,bash,role="execute",subs=attributes+]
-----
-mv * app
+mkdir app etc
 ----
 
-config files
+The `etc` directory will mimic the `/etc` on the host machine. 
+This means we can add or change files and directories without having to modify the Containerfile every time, but the updated contents will be added on any new image build. 
 [source,bash,role="execute",subs=attributes+]
 ----
 mkdir -p etc/systemd/system/
@@ -220,6 +218,18 @@ mkdir -p etc/nginx/conf.d/
 ----
 [source,bash,role="execute",subs=attributes+]
 ----
+mkdir -p etc/tmpfiles.d/
+----
+
+Let's move everything into the new `/app` directory and rearrange from there.
+[source,bash,role="execute",subs=attributes+]
+----
+mv * app
+----
+
+Move the service file and the nginx config into the appropriate local versions of the target locations.
+[source,bash,role="execute",subs=attributes+]
+----
 mv app/info-app.service etc/systemd/system
 ----
 [source,bash,role="execute",subs=attributes+]
@@ -227,12 +237,7 @@ mv app/info-app.service etc/systemd/system
 mv app/info-app.conf etc/nginx/conf.d
 ----
 
-Add our nginx tmpfiles fix, but this time to `/etc/tmpfiles.d/`
-[source,bash,role="execute",subs=attributes+]
-----
-mkdir -p etc/tmpfiles.d/
-----
-
+Create a new file with our nginx tmpfiles fix in `etc/tmpfiles.d/`.
 [source,bash,role="execute",subs=attributes+]
 ----
 nano etc/tmpfiles.d/nginx.conf
@@ -245,10 +250,10 @@ d /var/lib/nginx/tmp 770 nginx root -
 d /var/log/nginx     711 root  root -
 ----
 
-build files
+We'll leave the build files in the base directory of the repo. 
 [source,bash,role="execute",subs=attributes+]
 ----
-mv app/Containerfile* .
+mv app/Containerfile .
 ----
 
 [source,bash,role="execute",subs=attributes+]
@@ -263,23 +268,25 @@ dr-xr-x---. 7 root root 4096 Nov 17 21:00 ..
 drwxr-xr-x. 8 root root  163 Nov 17 20:52 .git
 -rw-r--r--. 1 root root 2439 Nov 17 20:15 .gitignore
 -rw-r--r--. 1 root root 1641 Nov 17 21:00 Containerfile
--rw-r--r--. 1 root root 1639 Nov 17 20:52 Containerfile.orig
 drwxr-xr-x. 4 root root  164 Nov 17 22:18 app
 drwxr-xr-x. 2 root root   51 Nov 17 22:18 etc
 ....
 
-notice all the git repo files stayed put based on the bash glob expansion
+Notice all the git repo files stayed put based on the bash glob expansion.
+This is a fairly opinionated way of organizing a repository to hold the definition of a system.
+The concept is that for any one "final artifact", be that standard baseline or prodcution host, would be in a single location.
+This may vary from how you manage configurations today with tools that might use a modular approach to create automation, like anisble playbooks.
+Since Containerfiles aren't particularly modular, we're following a pattern from the developers of one app per repo.
 
-Now update the Containerfile:
+Now update the Containerfile to use the new structure.
 [source,bash,role="execute",subs=attributes+]
 ----
 nano Containerfile
 ----
 
+Find the following block in the current Containerfile and replace it with the new block that follows:
 [source,dockerfile,role="execute",subs=attributes+]
 ----
-FROM registry-tpzl8.apps.ocpvdev01.rhdp.net/base
-old:
 # Copy the Flask application files and Gunicorn service file
 COPY . /app
 COPY info-app.service /etc/systemd/system/
@@ -295,26 +302,36 @@ COPY info-app.conf /etc/nginx/conf.d/
 
 ----
 
-new:
+Updated block:
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Copy the Flask application files
 COPY app/ /app
 
-# Install requirements via pip3
-RUN pip3 install -r /app/requirements.txt
-
 # custom Nginx configuration file that acts as a reverse proxy
 # nginx tmpfiles.d configuration
 # application systemd service defintion
 COPY etc/ /etc
+
+# Install requirements via pip3
+RUN pip3 install -r /app/requirements.txt
 ----
 
-Delete the test at the end of the Containerfile
+TIP: If you want a reference, there's a sample for the final layout of the Containerfile in `~/examples/Containerfile.app_final`
 
-Build and test (soft reboot)
+To manage the firewall during a container build, we'll use a purpose built tool provided as part of `firewalld`.
+The `firewall-cmd` uses DBUS to make changes and in a container build, DBUS isn't running.
+The offline version will create permanent changes to the firewalld configuration without the use of DBUS.
+You may find there are other "offline" versions of tools that typically interact with DBUS or systemd available.
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN firewall-offline-cmd -s http
+----
 
+Finally, remove the `heredoc` near the end of the file we created for testing the `nginx` workaround. 
+The new configuration file you just created will serve the same purpose.
 
+Now you're ready to build and push this version of the application.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
@@ -324,20 +341,44 @@ podman build --file Containerfile --tag registry-{guid}.{domain}/app-test:v2
 podman push registry-{guid}.{domain}/app-test:v2
 ----
 
-On Security VM:
+Switch to the Security VM tab to test the latest build of the image.
+
+We briefly mentioned the idea of "soft reboots" earlier.
+Soft reboots are a new feature of `systemd` that restarts user space (including re-executing itself) without fully restarting the host.
+For changes that don't include kernel updates or other operations that only happen during the full init process like loading the custom SELinux module, this can save a lot of time on most systems.
+Keep in mind, all of the applications will be restarted, so for large in-memory databases you may not find soft reboots as uninstrusive.
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc update --soft-reboot=required --apply
 ----
+
+Log back into the Security VM on the SSH tab by hitting `reconnect` or using the refresh button in the tab.
+
+Since soft reboots are a feature of `systemd`, `systemctl show` will provide information as with any other property, like the number of soft reboots for the host.
 [source,bash,role="execute",subs=attributes+]
 ----
 systemctl show --value --property SoftRebootsCount
 ----
+
+The output of `bootc status` will also show if a particular image is a soft reboot candidate with a new field in the verobse output.
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc status --verbose
 ----
+
+Let's check on the health of the application to see if the soft reboot applied all of our new changes to the host.
 [source,bash,role="execute",subs=attributes+]
 ----
 systemctl status info-app.service nginx.service
 ----
+
+And what about the app directory clean up?
+[source,bash,role="execute",subs=attributes+]
+----
+ls -al /app
+----
+....
+....
+
+The config files are moved, but th intermediate SELinux build files are still there.
+Let's explore that in the next lab.

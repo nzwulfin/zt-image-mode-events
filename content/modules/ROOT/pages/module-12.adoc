@@ -2,7 +2,8 @@
 
 In addition to simplifying updates and providing native rollback, operating RHEL in image mode also makes it simple to adopt application container development practices for operating system definiteions. 
 
-In this lab we'll explore this feature as well as expand on the idea of standardized builds and derived images.
+In the last lab, we imposed some structure on application container.
+In this lab, we'll take a pattern from the application container world to move the SELinux module creation.
 
 [#write-containerfiles]
 == Using multi-stage builds
@@ -13,6 +14,7 @@ This is refered to as a multi-stage build and can be used to separate portions o
 
 Let's explore how that can work by looking at the SELinux module creation in the Containerfile.
 
+Here's the block in the Containerfile that builds and implements the module:
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Ensure nginx can talk to gunicorn
@@ -23,34 +25,46 @@ RUN semodule -i nginx_connect_flask_sock.pp # <.>
 RUN mkdir /run/flask-app && chgrp -R nginx /run/flask-app && chmod 770 /run/flask-app # <.>
 RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
 ----
-<.> Doing work in the production application target
+<.> Doing work inside the production application target directory in the image
 <.> Intermediate files created in the image
 <.> The final binary policy we really need, but in the application directory
 <.> Other work needed to make things take effect
+
+The `WORKDIR` directive is what's creating the intermedite build files inside the image.
+The `WORKDIR` target (`/app`) is essentially a `cd` inside the image filesystem, not the build host.
 
 Let's rearrange the work for this module to use a multi-stage build and not carry around extra files in the application directory.
 [source,bash,role="execute",subs=attributes+]
 ----
 nano Containerfile
 ----
-First, build the policy in a named stage
+
+Each stage is defined by a new `FROM` line and can use any image needed.
+What makes them particularly useful is the ability to selectively copy from one stage into another, leaving behind everything else.
+
+At the top of the Containerfile, add the following block that has the build lines for the SELinux module:
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 FROM registry.redhat.io/rhel10/rhel-bootc:10.1 AS policy # <.>
-COPY app/nginx_connect_flask_sock.te .
+COPY app/nginx_connect_flask_sock.te . <.>
 RUN checkmodule -M -m nginx_connect_flask_sock.te -o nginx_connect_flask_sock.mo
 RUN semodule_package -o nginx_connect_flask_sock.pp -m nginx_connect_flask_sock.mo
 ----
-<.> naming this stage let's us access it later
+<.> Using `AS` let's us access the contents of the stage later via that name
+<.> We copy from the host `app` directory instead of a directory the image
 
-Second, change the original `FROM` line
+We don't need to change the actual work, just where it's performed.
+We could have used any RHEL 10 base image, like UBI, since there's nothing specific to the image mode base for the SELinux tools.
+
+Second, change the secure baseline `FROM` line to include a name.
+This is mostly for readability since we don't have a third stage
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 FROM registry-{guid}.{domain}/base AS host <.>
 ----
 <.> name our application definition stage
 
-Finally, replace the old block with a copy from the policy stage
+Finally, replace the old block with a copy from the `policy` stage
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Deploy the binary SELinux policy and update the labeling
@@ -61,6 +75,13 @@ RUN semanage fcontext -a -t httpd_var_run_t /run/flask-app
 ----
 <.> `--from` tells podman to look for a matching stage for a file and copy from there instead of the host filesystem
 <.> target a system location for our custom policy instead of the application directory
+
+We can also add the policy to a standard system location managed by the image. 
+This will get picked up on boot as part of the targeted policy from here on.
+Since it's versioned with the image, if we need to make changes, we can make those the same way we make any other changes to the image.
+
+There's other work in that original block, making sure the `/run` directory gets created and labeled correctly.
+That shouldn't be needed as long as the label is loaded in the targeted policy and the service file is correct.
 
 See how the new multi-stage build operates
 [source,bash,role="execute",subs=attributes+]
@@ -81,9 +102,6 @@ This helps troubleshooting builds.
 [2/2] STEP 1/11: FROM registry-j475j.apps.ocpvdev01.rhdp.net/base AS host
 Trying to pull registry-j475j.apps.ocpvdev01.rhdp.net/base:latest...
 ....
-Before me move on, there's other work in that block, making sure the /run directory gets created and labeled correctly.
-That shouldn't be needed as long as the label is present and the service file is correct.
-
 [source,bash,role="execute",subs=attributes+]
 ----
 podman push registry-{guid}.{domain}/app-test:v2
