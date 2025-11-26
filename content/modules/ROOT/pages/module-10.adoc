@@ -12,7 +12,7 @@ In this lab we'll explore this feature as well as expand on the idea of standard
 The developers have built a version of their app using the Red Hat provided base image that works on initial install but not when switching an existing image mode host. 
 Why?
 
-First, let's add linting and then build a copy to test the switch.
+First, let's add linting to their Containerfile and then build a copy to test the switch.
 
 [source,bash,role="execute",subs=attributes+]
 ----

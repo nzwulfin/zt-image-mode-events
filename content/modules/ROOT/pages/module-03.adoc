@@ -33,7 +33,7 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAuXnpoluye+KM+9tvIAdHf+F0IHh+K73tlcjEG8LJRB
 ....
 NOTE: This is only a sample and this public key will not work in your environment
 
-You can now create a file called `config-qcow2.toml` with the following contents, replacing "SSHKEY" 
+You can now create a file called `config.toml` with the following contents, replacing "SSHKEY" 
 in the `key` field with the contents of public key from your system.
 
 [source,bash,role="execute",subs=attributes+]
@@ -57,7 +57,8 @@ This configuration blueprint creates a user in the wheel group with the login `c
 
 To create a bootable disk image from an OCI image, we have a special version of image builder that has support for `bootc`. This `bootc-image-builder` itself runs as a container, and as a result needs additional capabilities and to be run as `root`. 
 
-As `bootc-image-builder` accesses local storage to find the source image, we will need to copy our image from user storage to system storage. The `podman image scp` command can do this for us, as well as copying to various different targets. When executed with a source but without a destination as below, the default is local system storage.
+As `bootc-image-builder` accesses local storage to find the source image, we need our image in system storage. 
+If we'd built as a non-root user, the `podman image scp` command can do this for us, as well as copying to various different targets.
 
 
 Try to generate the image now:
@@ -110,8 +111,7 @@ The creation of KVM virtual machines is out of scope for this lab, but the core 
 
 [source,bash,role="execute",subs=attributes+]
 ----
-virt-install --connect qemu:///system \
-  --name bootc-vm \
+virt-install --name bootc-vm \
   --disk /var/lib/libvirt/images/bootc-vm.qcow2 \
   --import \
   --memory 4096 \
@@ -125,40 +125,61 @@ We can now start our new bootc virtual machine.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-virsh --connect qemu:///system start bootc-vm
+virsh bootc-vm
 ----
 
-Check to make sure the virtual machine running:
-
-[source,bash,role="execute",subs=attributes+]
-----
-virsh --connect qemu:///system list
-----
-....
- Id   Name                State
-------------------------------------
- 1    bootc-vm                running
-....
+== Swith to the image mode VM
+NOTE: The terminal pages for the KVM guests have a script that will wait for SSH to become available before trying to log in. If there's a problem with an SSH connection, you can restart the connection using the refresh button in the tab.
 
 [#test]
 == Test and login to the virtual machine
+Click on the tab labeled "Ops VM" 
 
+Once the script detects SSH is running, you should be automatically logged in as the `core` user created in the `bootc-image-builder` customization. 
+Let's test one of the packages installed from `EPEL` during the build process.
 [source,bash,role="execute",subs=attributes+]
 ----
 btop
 ----
+TIP: You can hit `q` to exit `btop`
 
+Image mode hosts introduce a new way of understanding what's running on a host. 
+The new `bootc` command is at the heart of operations on image mode hosts.
+Let's familiarize ourselves with the `status` options first.
+
+This status provides information about the images on the host. There are 3 different images that may be available on a bootc host: the booted image, the staged image, and the rollback image. We'll discuss the latter two images later in the lab. The booted image is what's currently defined as the active environment. The image name here is what `bootc` tracks to detect any updates that come available. 
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc status
 ----
 ....
- Booted image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
-        Digest: sha256:b937c4633ae298d3c68d97810b1b6dc276e8d47f8aea0a6ba85eff540b966539 (amd64)
-       Version: 10.1 (2025-11-13T16:56:36Z)
+Booted image: registry-pw6dg.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:3d0fab2f019f5b641ccf3e41853f2e3b720a96aaa7a3d786548a47b3f098cc02 (amd64)
+       Version: 10.1 (2025-11-19T17:11:53Z)
 ....
-<1> This section details the name of the image, the version with creation timestamp, and the SHA256 digest from the registry. This digest should match the previous output from `skopeo`. 
 
+First, `bootc` tells you directly if it's being run on an image mode host or not. If `bootc` were to be installed and run on a non-bootc host, `bootc status` will show all `null` values instead of the output seen here. 
+The core information shows is the image in use, the digest, and some version information.
+
+More information is available with the `--verbose` flag.
+[source,bash,role="execute",subs=attributes+]
+----
+sudo bootc status --verbose
+----
+....
+Booted image: registry-pw6dg.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:3d0fab2f019f5b641ccf3e41853f2e3b720a96aaa7a3d786548a47b3f098cc02 (amd64)
+       Version: 10.1 (2025-11-19T17:11:53Z)
+     StateRoot: default
+ Deploy serial: 0
+        Staged: no
+        Commit: 564872a699359b7988e63851bc24b60da83072c0c150849c4ecd8f606c0aa487
+   Soft-reboot: yes
+....
+
+Status doesn't stop there.
+Full internal information about the images can be found by using the `--format` tag to ask for additional detail in YAML or JSON.
+This can be useful for troubleshooting or for using this information in other tools.
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc status --format yaml
@@ -170,7 +191,7 @@ metadata:
   name: host
 spec:
   image:
-    image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+    image: registry-pw6dg.apps.ocpvdev01.rhdp.net/base
     transport: registry
   bootOrder: default
 status:
@@ -178,30 +199,35 @@ status:
   booted:
     image:
       image:
-        image: registry-mjghb.apps.ocpvdev01.rhdp.net/base
+        image: registry-pw6dg.apps.ocpvdev01.rhdp.net/base
         transport: registry
       version: '10.1'
-      timestamp: 2025-11-13T16:56:36.232037898Z
-      imageDigest: sha256:b937c4633ae298d3c68d97810b1b6dc276e8d47f8aea0a6ba85eff540b966539
+      timestamp: 2025-11-19T17:11:53Z
+      imageDigest: sha256:3d0fab2f019f5b641ccf3e41853f2e3b720a96aaa7a3d786548a47b3f098cc02
       architecture: amd64
-    cachedUpdate: null
+    cachedUpdate:
+      image:
+        image: registry-pw6dg.apps.ocpvdev01.rhdp.net/base
+        transport: registry
+      version: '10.1'
+      timestamp: 2025-11-19T17:11:53Z
+      imageDigest: sha256:6d5958c5d8bb1e3ea0b46751d06600cf30078bf5ba6124f65a200794e3fefa32
+      architecture: amd64
     incompatible: false
     pinned: false
     softRebootCapable: true
     store: ostreeContainer
     ostree:
       stateroot: default
-      checksum: 7b67791e3f5f79e86d9d4f297cfbac57de6e96f67df46622047429bf60429b99
+      checksum: 564872a699359b7988e63851bc24b60da83072c0c150849c4ecd8f606c0aa487
       deploySerial: 0
   rollback: null
   rollbackQueued: false
   type: bootcHost
 ....
 
-This status provides information about the images on the host. There are 3 different images that may be available on a bootc host: the booted image, the staged image, and the rollback image. We'll discuss the latter two images later in the lab. The booted image is what's currently defined as the active environment. The image name here is what `bootc` tracks to detect any updates that come available. 
 
 
-First, `bootc` tells you directly if it's being run on an image mode host or not. If `bootc` were to be installed and run on a non-bootc host, `bootc status` will show all `null` values instead of the output seen here. 
 
 For other ways, we can look at how the system was started, let's look at kernel command line.
 

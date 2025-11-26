@@ -1,10 +1,4 @@
-# Admin module
 FROM registry.redhat.io/rhel10/rhel-bootc:10.1
-
-# Set up some variables and labels to ID images in our environments
-MAINTAINER sysadmins@example.com
-# RHEL version inherited from bootc base as redhat.version-id and release
-LABEL vendor="Example Corp"
 
 RUN dnf -y install pcp-zeroconf \
         rsyslog \
@@ -16,44 +10,31 @@ RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.
 RUN dnf -y install btop iftop
 
 # Add image controlled configs
+# COPY 10-wheel /etc/sudoers.d/wheel
+# COPY console_kargs.conf /usr/lib/bootc/kargs.d/05-cloud-kargs.toml
+# COPY auth.json /etc/ostree/auth.json
 ADD etc/ /etc
-#ADD usr/ /usr
+ADD usr/ /usr
 
 RUN systemctl mask bootc-fetch-apply-updates.timer
 
-
-# Add image controlled configs
-# RUN echo "%wheel  ALL=(ALL)   NOPASSWD: ALL" >> /etc/sudoers.d/wheel
-# RUN echo "d /var/lib/rsyslog     700 root root -" >> /etc/tmpfiles.d/rsyslog.conf
-COPY console_kargs.conf /usr/lib/bootc/kargs.d/05-cloud-kargs.toml
-
-# Dealing with registries and additional information step
-COPY auth.json /etc/ostree/auth.json
 # Set up some variables and labels to ID images in our environments
 MAINTAINER sysadmins@example.com
 # RHEL version inherited from bootc base as redhat.version-id and release
-LABEL vendor="Example Co" \
-      profile="CIS Sever Level 1 base image"
-
-
-# Mask the auto timer so we can control this in a downstream image or host
-RUN systemctl mask bootc-fetch-apply-updates.timer
+LABEL vendor="Example Corp" 
 
 # Security module starts here with software requirements
 RUN dnf -y install audit fapolicyd openscap-utils scap-security-guide setroubleshoot-server
 
-#ENV profileID=cis_server_l1
+LABEL profile="CIS Sever Level 1 base image"
 ENV profileID=cis_server_l1_customized
 
 COPY $profileID.xml /tmp/$profileID.xml
 RUN oscap-im --profile $profileID --tailoring-file /tmp/$profileID.xml /usr/share/xml/scap/ssg/content/ssg-rhel10-ds.xml
-#RUN auditctl -w /etc/fapolicyd/ -p wa -k fapolicyd_changes
-#RUN echo "u fapolicyd 978 - /var/lib/fapolicyd" >> /usr/lib/sysusers.d/fapolicy.conf
-#RUN echo "g     fapolicyd 978" >> /usr/lib/sysusers.d/fapolicy.conf
-#COPY fapolicyd-tmpfiles.conf /etc/tmpfiles.d/
 RUN systemctl enable fapolicyd
 
 # Skip these in first 2 modules
 #Clean up caches in the image and lint the container
 RUN rm /var/{cache,lib}/dnf /var/lib/rhsm /var/cache/ldconfig -rf
+
 RUN bootc container lint
