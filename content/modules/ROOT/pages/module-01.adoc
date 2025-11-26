@@ -1,6 +1,13 @@
-= System setup
+= Lab design
 
-You will interact with a total of 3 systems: the primary lab hypervisor, a container registry, and an image mode VM.  Most of your work will be done on the lab hypervisor, and you will create the target image mode VM as part of the exercises. Caution should be taken when instructed to reboot a system that you are on the correct host.
+Creating production RHEL systems is a group effort, meeting the requirements of different teams to deliver applications in a secure and manageable fashion.
+
+The developers have already been able to port the containerized version of the application to a bootc base, but this proof of concept doesn't include any support for the management infrastructure or meet the compliance requirements for a production web application.
+
+In this lab, you'll build an image mode host to support this new application based on the requirements of the developers and the security teams.
+
+== Lab machines
+You will interact with a total of 5 systems: the primary build machine, a container registry, and image mode VMs.  Most of your work will be done on the lab hypervisor, and you will create image mode VMs as part of the exercises. Caution should be taken when instructed to reboot a system that you are on the correct host.
 
 == Lab diagram
 
@@ -10,6 +17,8 @@ image::lab-diagram.png[]
 
 *Container build host*: One of the main parts of this lab is the build environment. The primary lab machine serves as a basic container build environment. The RHEL container tools (podman, buildah, skopeo) will be used throughout this lab to do simple container creation. This is all that is needed for a basic build host. You will also create the Containerfiles and any other needed configuration files on this host.
 
-*Container registry*: The registry in this lab environment is a basic registry with no authentication or management tooling. More tools, workflows, and insights are available from more modern registry solutions like quay.io. For the purposes of the exercises, a simple registry to host images is all that's needed.
+NOTE: This machine will also host some of the virtual machines used during exercises.
 
-*Target host*: A KVM based virtual machine will be created during an exercise to serve as an install location for the image mode system. Any cloud, virtual, or bare metal machine can be used in practice. This lab won't go into detail on local management of KVM, but will use virt-install and virsh to manage the local VM.
+*Container registry*: The registry in this lab environment is a basic registry with no management tooling. More tools, workflows, and insights are available from more modern registry solutions like quay.io. For the purposes of the exercises, a simple registry to host images is all that's needed.
+
+*Target hosts*: KVM based virtual machines will be created during an exercise to serve as an install location for the image mode system. Any cloud, virtual, or bare metal machine can be used in practice. This lab won't go into detail on management of KVM, but will use virt-install and virsh to manage the local VM.
