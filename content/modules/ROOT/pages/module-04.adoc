@@ -27,7 +27,7 @@ nano 10-wheel
 
 Add the following and save the file
 
-[source,text,role="execute",subs=attributes+]
+[source,shell,role="execute",subs=attributes+]
 ----
 # Enable passwordless sudo for the wheel group
 %wheel        ALL=(ALL)       NOPASSWD: ALL
@@ -42,12 +42,17 @@ nano console_kargs.conf
 
 Add the following and save the file
 
-[source,text,role="execute",subs=attributes+]
+[source,shell,role="execute",subs=attributes+]
 ----
 kargs = ["console=tty0", "console=ttyS0,115200n8"]
 ----
 
-Now that we have our new configs, we can add them to the Containerfile and rebuild the image.
+Now that we have our new configs, we can add them to the end of the Containerfile and rebuild the image.
+
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile
+----
 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
@@ -119,6 +124,8 @@ We now have replaced the original image in the registry we used to create the vi
 [#update-vm]
 == Updating the virtual machine
 
+Switch back to the tab labeled Ops VM.
+
 By default, image mode hosts ship with a timer that checks for and applies available updates.
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -149,7 +156,7 @@ The `/etc` directory can be updated either via the image or via the running host
 This allows for central control with local overrides.
 During an update, `bootc` will compare the incoming `/etc` to the host `/etc` to determine what changes to make.
 If there have been local updates, those will be preserved, otherwise the new file will be installed.
-We've written more about this '3 way merge' process[https://developers.redhat.com/articles/2025/08/25/what-image-mode-3-way-merge,window=_blank] and the implications for image mode hosts.
+We've written more about this https://developers.redhat.com/articles/2025/08/25/what-image-mode-3-way-merge['3 way merge' process ,window=_blank] and the implications for image mode hosts.
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo podman login -u core -p redhat registry-{guid}.{domain} --authfile=/etc/ostree/auth.json
@@ -181,7 +188,7 @@ Total new layers: 72    Size: 1.1 GB
 Removed layers:   69    Size: 2.1 GB
 Added layers:     72    Size: 1.1 GB
 ....
-NOTE: At the time of writing, the first update of an image mode host may be large. This is due to registry versus local storage when the disk image was created.
+NOTE: At the time of writing, the first update of an image mode host may be larger than just the layers changed at build time. This is due to registry versus local storage when the disk image was created.
 
 Let's check the current status of the host.
 [source,bash,role="execute",subs=attributes+]
@@ -209,13 +216,24 @@ sudo systemctl reboot
 
 [#testing]
 == Testing the changes
-Log back into the VM and look for the kernel arguments we added via the `bootc` configuration path.
+Log back into the VM by clicking `reconnect` and look for the kernel arguments we added via the `bootc` configuration path.
 [source,bash,role="execute",subs=attributes+]
 ----
 cat /proc/cmdline
 ----
 
+The status now shows a rollback image instead of a staged image. 
+We'll explore what that means in a later exercise.
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc status
 ----
+....
+● Booted image: registry-bkg5j.apps.ocpvdev01.rhdp.net/base
+        Digest: sha256:2b61cd3814d2ec1a0a420435fe7c2fef0423d40b3ce1859cc5b14e1393ef3672 (amd64)
+       Version: 10.1 (2025-11-26T22:22:04Z)
+
+  Rollback image: registry-bkg5j.apps.ocpvdev01.rhdp.net/base
+          Digest: sha256:e4688ba584b714092e50493ee3ae10249fc506e68b404bd4095f0d6911124de1 (amd64)
+         Version: 10.1 (2025-11-26T21:54:28Z)
+....

@@ -2,44 +2,12 @@
 This is a decent start for our gold image, but let's address a few more topics.
 Our goals are to centralize our configuration and build processes while making it easier to work acrross teams.
 
-Let's update the timer.
-In this lab, we don't want the timer updating the host unexpectedly, and you may not want that either.
-One simple way to disable the timer is to mask the service with `systemd`. 
-This will ensure that the service isn't unexpectedly enabled after a change or update.
-Since this is a systemd timer, you can manange and modify the defintion to fit your environment by creating a new service file.
-[source,dockerfile,role="execute",subs=attributes+]
-----
-RUN systemctl mask bootc-fetch-apply-updates.timer
-----
-
-One of the benefits of containerized builds is extra metadata available by default.
-Instead of relying on naming conventions or `bootc status` output, we can add information to the images via labels.
-
-Let's add some basic information, the contact email for the team who owns the image and the "vendor", here our company.
-These will be added and can be queried remotely in the registry.
-There are other labels that are created by Red Hat when published that include RHEL version and more.
-[source,dockerfile,role="execute",subs=attributes+]
-----
-# Set up some variables and labels to ID images in our environments
-MAINTAINER sysadmins@example.com
-# RHEL version inherited from bootc base as redhat.version-id and release
-LABEL vendor="Example Corp" 
-----
-
-The `bootc` command has a built-in linting command to highlight potential problems with a built image.
-This will help catch issues that may only show up after install and other specific operations.
-The conditions caught by linting are always being improved as time goes on.
-[source,dockerfile,role="execute",subs=attributes+]
-----
-RUN bootc container lint
-----
-We briefly mentioned that responsibility for `/etc` is split between the image and the running host.
-This means we can centralize common configs in our builds, while allowing for runtime flexibility.
-
-We'll take a page from application container design and use the `COPY` directive to manage our central configs as if they were directories.
-The configs we have created so far will move into those directories, reducing the number of commands and therefor the number of layers created by the build.
 Each directive in the Containerfile adds a new layer to the resulting image.
 Understanding layering will help design images that make the most efficient use of the local build cache and network updates.
+
+=== Managing system configurations
+We'll take a page from application container design and use the `COPY` directive to manage our central configs as if they were directories.
+The configs we have created so far will move into those directories, reducing the number of commands and therefor the number of layers created by the build.
 
 First, let's set up a directory structure that mimics `/etc` and `/usr` and  move the files we created inside. 
 This allows us to add all the configs at once with a single command and in a single layer of the image.
@@ -68,11 +36,39 @@ mv 10-wheel etc/sudoers.d
 mv console_kargs.conf usr/lib/bootc/kargs.d/05-cloud-kargs.toml
 ----
 
+We briefly mentioned that responsibility for `/etc` is split between the image and the running host.
+This means we can centralize common configs in our builds, while allowing for runtime flexibility.
+
 Replace the individual file COPY lines with these two lines for our new directories. 
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 COPY etc/ /etc
 COPY usr/ /usr
+----
+
+=== Automatic updates
+In this lab, we don't want the timer updating the host unexpectedly, and you may not want that either.
+One simple way to disable the timer is to mask the service with `systemd`. 
+This will ensure that the service isn't unexpectedly enabled after a change or update.
+Since this is a systemd timer, you can manange and modify the defintion to fit your environment by creating a new service file.
+[source,dockerfile,role="execute",subs=attributes+]
+----
+RUN systemctl mask bootc-fetch-apply-updates.timer
+----
+
+=== Container metadata
+One of the benefits of containerized builds is extra metadata available by default.
+Instead of relying on naming conventions or `bootc status` output, we can add information to the images via labels.
+
+Let's add some basic information, the contact email for the team who owns the image and the "vendor", here our company.
+These will be added and can be queried remotely in the registry.
+There are other labels that are created by Red Hat when published that include RHEL version and more.
+[source,dockerfile,role="execute",subs=attributes+]
+----
+# Set up some variables and labels to ID images in our environments
+MAINTAINER sysadmins@example.com
+# RHEL version inherited from bootc base as redhat.version-id and release
+LABEL vendor="Example Corp" 
 ----
 
 With our updated Containerfile, let's do a final build.
