@@ -11,8 +11,9 @@ We use the Red Hat base as the builder, since the tools needed to create a rootf
 Let's explore how that can work by creating a new Containerfile with the following contents.
 [source,bash,role="execute",subs=attributes+]
 ----
-nano Containerfile.scratch
+nano Containerfile.std
 ----
+
 scratch build with standard packages and configs
 [source,dockerfile,role="execute",subs=attributes+]
 ----
@@ -31,7 +32,7 @@ COPY --from=builder /target-rootfs/ /
 RUN <<EORUN
 set -xeuo pipefail
 # Install necessary packages, run scripts, etc.
-dnf -y install NetworkManager emacs
+dnf -y install NetworkManager openssh-server
 # Remove leftover build artifacts from installing packages in the final built image.
 dnf clean all
 rm /var/{log,cache,lib}/* -rf
@@ -48,11 +49,20 @@ CMD ["/sbin/init"]
 # Run the bootc linter to avoid encountering certain bugs and maintain content quality. Place this command last in your Containerfile.
 RUN bootc container lint
 ----
-podman build -t scratch -f Containerfile.scratch --cap-add=all --security-opt=label=type:container_runtime_t --device /dev/fuse
+
+[source,bash,role="execute",subs=attributes+]
+----
+podman build -t scratch:std -f Containerfile.std --cap-add=all --security-opt=label=type:container_runtime_t --device /dev/fuse
+----
 
 You can see that seemingly simple builder image does a huge amount of work setting up the base filesystem.
 It also installed 400+ packages, since this is the specification for the standard base image RHT ships.
 We also provide a minimal manifest that has even fewer packages selected. 
+[source,bash,role="execute",subs=attributes+]
+----
+nano Containerfile.mini
+----
+
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Begin with a standard bootc base image that is reused as a "builder" for the custom image.
@@ -69,7 +79,6 @@ set -xeuo pipefail
 dnf -y install NetworkManager openssh-server
 dnf clean all
 rm /var/{log,cache,lib}/* -rf
-bootc container lint
 EORUN
 
 # Define required labels for this bootc image to be recognized as such.
@@ -82,5 +91,9 @@ CMD ["/sbin/init"]
 RUN bootc container lint
 ----
 
+[source,bash,role="execute",subs=attributes+]
+----
+podman build -t scratch:mini -f Containerfile.mini --cap-add=all --security-opt=label=type:container_runtime_t --device /dev/fuse
+----
 The manifests are part of the base image definitions[https://gitlab.com/fedora/bootc/base-images/-/tree/main?ref_type=heads,window=_blank]
 
