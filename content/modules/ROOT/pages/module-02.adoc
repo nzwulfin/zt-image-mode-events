@@ -1,6 +1,10 @@
 = Build a bootc image
 In this exercise, you will see how to apply application container build concepts to a bootc image.
 
+The fundamental principle of image mode is applying a decade of container expertice and advancements to building operating system images.
+This simple idea has a wide impact on how we think about OS design, working with 'gold images', working with other teams, addressing updates, and more.
+In this lab, we'll walk through the process of creating a new 'gold image' for an application.
+We'll start with the tools the operations team needs, add the requirements from the security team, and then get our applicaion ready for deployment.
 [#write]
 == Create the Containerfile
 
@@ -15,7 +19,16 @@ The `vim` editor is also available. Users of `vim` should already know the basic
 of opening, saving and exiting the editor. 
 ====
 
-Add software from RHEL sub
+Image mode hosts start with a standard Containerfile and the standard instructions. 
+The `FROM` line defines the starting point of the build. 
+We'll start with the base image published by Red Hat and add components from there.
+
+Adding software from a RHEL repo looks the same as any other `dnf` command, wrapped in the `RUN` directive.
+Like other containers, subscription information is taken from the build host by default, so there's no additional subscription management needed here to get access.
+
+For our admins, we've got a list of common tools we need available on every host to integrate with the management and monitoring tools.
+Let's add some common tools now, PCP, remote syslogging, kernel tuning, and `tumux`.
+`RUN` directives act like shell commands, so this looks like any other command spread over multiple lines for readability.
 [source,bash,role="execute",subs=attributes+]
 ----
 nano Containerfile
@@ -31,9 +44,9 @@ RUN dnf -y install pcp-zeroconf \
         tuned
 ----
 
-  
-3rd party repos
-
+Some tools we need may come from 3rd party repositories, either community or project repos like `EPEL` or repos you maintain for your own applications.
+Repos can be added directly to the image instead of the build host, allowing us better control over software available.
+Install the `EPEL` repo RPM, and 2 additional admin favorites.
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 RUN dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
@@ -65,4 +78,6 @@ f1bea10eb37acf2e78a9b01c6242110c1901adbaf40dbce479241c6c735c58da
 ----
 
 You have now built your first complete RHEL image as a bootc image!
+The standard Red Hat bootc base image includes not just the kernel, firmware, bootloader, and other tools not required for a traditional container, but also common other tools and dependencies like SSH, NetworkManager, and more.
+This separates the bootc base image from other Red Hat provided images like UBI.
 

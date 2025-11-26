@@ -66,10 +66,8 @@ podman build --file Containerfile --tag registry-{guid}.{domain}/base
 [#distribute]
 == Distributing the bootc image
 
-Now that we have a full operating system in a standard OCI container image, we can use
-standard container registries to host and distribute our OS images. The only atypical thing so far 
-is what's in the base image. How we added software or files to the image is the same as any other 
-application container. The special sauce of `bootc` comes when a host is running.
+We used local storage to create our virtual machine image, but to update a running host we need a different way to make images available to running hosts.
+Now that we have a full operating system in a standard OCI container image, we can use standard container registries to host and distribute our OS images. 
 
 We have a registry available within the lab environment we can push our image to:
 
@@ -81,18 +79,26 @@ podman push registry-{guid}.{domain}/base
 Error: trying to reuse blob sha256:7c1862f54f1a8b765bb4f3c6763cfc512d00bfe4fa3246fbcf38c273489a9be1 at destination: checking whether a blob sha256:7c1862f54f1a8b765bb4f3c6763cfc512d00bfe4fa3246fbcf38c273489a9be1 exists in registry-mjghb.apps.ocpvdev01.rhdp.net/base: authentication required
 ....
 
-Authenticate and add to Containerfile
+It's common for enterprise registries to require some sort of authentication to push or pull images. 
+We can log in and cache credentials in our shell, but that won't work for the image mode hosts.
 
 [source,bash,role="execute",subs=attributes+]
 ----
 podman login -u core -p redhat registry-{guid}.{domain}
 ----
 
+To create system credentials, we'll reuse the user login, but typically some sort of service acccount would be used.
+In any case, the files are identeical, and can be published in the image. This will allow a newly created image mode host to update immediately after install.
+
+The credentials are on disk, but the `podman login` command can also generate a file for a single registry. 
+This can be useful as users may have personal credentials for a number of different registries and we don't want to accidentally include or leak these into different environments.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman login -u core -p redhat registry-{guid}.{domain} --authfile=auth.json
 ----
 
+With the authfile created, we can add this to the Containerfile.
+Since we've made a change to our definition, we need to rebuld the image.
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 COPY auth.json /etc/ostree/auth.json
@@ -102,6 +108,7 @@ COPY auth.json /etc/ostree/auth.json
 podman build --file Containerfile --tag registry-{guid}.{domain}/base
 ----
 
+Now we can push our updated image to the registry.
 [source,bash,role="execute",subs=attributes+]
 ----
 podman push registry-{guid}.{domain}/base
@@ -111,17 +118,23 @@ We now have replaced the original image in the registry we used to create the vi
 
 [#update-vm]
 == Updating the virtual machine
+
+By default, image mode hosts ship with a timer that checks for and applies available updates.
 [source,bash,role="execute",subs=attributes+]
 ----
 systemctl list-timers
 ----
+
+The timer will fire some random interval after boot.
+This can be controlled via the Containerfile, we'll take a look at an example of this later.
 
 [source,bash,role="execute",subs=attributes+]
 ----
 systemctl status bootc-fetch-apply-updates.timer
 ----
 
-(Reminder, the password for `sudo` is `redhat`)
+Rather than wait for the timer to fire, go ahead and run `bootc update` by hand.
+(Reminder, the password for `sudo` is `redhat` as set in the customization blueprint)
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo bootc update
@@ -129,6 +142,14 @@ sudo bootc update
 ....
 error: Upgrading: Preparing import: Fetching manifest: failed to invoke method OpenImage: reading manifest latest in registry-mjghb.apps.ocpvdev01.rhdp.net/base: authentication required
 ....
+
+Since we created this VM before we added the credentials to the image, we need to create them manually.
+One of the important details of image mode operations is how host filesystems are treated.
+The `/etc` directory can be updated either via the image or via the running host.
+This allows for central control with local overrides.
+During an update, `bootc` will compare the incoming `/etc` to the host `/etc` to determine what changes to make.
+If there have been local updates, those will be preserved, otherwise the new file will be installed.
+We've written more about this '3 way merge' process[https://developers.redhat.com/articles/2025/08/25/what-image-mode-3-way-merge,window=_blank] and the implications for image mode hosts.
 [source,bash,role="execute",subs=attributes+]
 ----
 sudo podman login -u core -p redhat registry-{guid}.{domain} --authfile=/etc/ostree/auth.json
@@ -139,6 +160,7 @@ sudo podman login -u core -p redhat registry-{guid}.{domain} --authfile=/etc/ost
 ls /etc/ostree/auth.json
 ----
 
+With the system credentials in place, try the update again.
 (Reminder, the password for `sudo` is `redhat`)
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -159,6 +181,7 @@ Total new layers: 72    Size: 1.1 GB
 Removed layers:   69    Size: 2.1 GB
 Added layers:     72    Size: 1.1 GB
 ....
+NOTE: At the time of writing, the first update of an image mode host may be large. This is due to registry versus local storage when the disk image was created.
 
 Let's check the current status of the host.
 [source,bash,role="execute",subs=attributes+]
@@ -186,7 +209,7 @@ sudo systemctl reboot
 
 [#testing]
 == Testing the changes
-
+Log back into the VM and look for the kernel arguments we added via the `bootc` configuration path.
 [source,bash,role="execute",subs=attributes+]
 ----
 cat /proc/cmdline
