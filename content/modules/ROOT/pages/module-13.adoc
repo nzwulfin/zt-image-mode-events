@@ -14,12 +14,12 @@ On the build host, let's update the config file and remove the duplicate entry.
 
 [source,bash,role="execute",subs=attributes+]
 ----
-cd
+cd ~
 ----
 
 [source,bash,role="execute",subs=attributes+]
 ----
-nano console_kargs.conf
+nano usr/lib/bootc/kargs.d/05-cloud-kargs.toml
 ----
 
 Remove the first "console" argument in the list.

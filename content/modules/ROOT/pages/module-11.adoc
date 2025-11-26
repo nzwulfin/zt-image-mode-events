@@ -203,7 +203,13 @@ Let's create some direhttps://developers.redhat.com/articles/2025/11/17/image-mo
 
 [source,bash,role="execute",subs=attributes+]
 ----
-mkdir app etc
+mkdir app
+----
+
+Let's move everything into the new `/app` directory and rearrange from there.
+[source,bash,role="execute",subs=attributes+]
+----
+mv * app
 ----
 
 The `etc` directory will mimic the `/etc` on the host machine. 
@@ -219,12 +225,6 @@ mkdir -p etc/nginx/conf.d/
 [source,bash,role="execute",subs=attributes+]
 ----
 mkdir -p etc/tmpfiles.d/
-----
-
-Let's move everything into the new `/app` directory and rearrange from there.
-[source,bash,role="execute",subs=attributes+]
-----
-mv * app
 ----
 
 Move the service file and the nginx config into the appropriate local versions of the target locations.
@@ -278,13 +278,16 @@ The concept is that for any one "final artifact", be that standard baseline or p
 This may vary from how you manage configurations today with tools that might use a modular approach to create automation, like anisble playbooks.
 Since Containerfiles aren't particularly modular, we're following a pattern from the developers of one app per repo.
 
-Now update the Containerfile to use the new structure.
+We'll make a series of edits to the Containerfile to incorporate all of our changes.
+
+TIP: If you want a reference, there's a sample for the final layout of the Containerfile in `~/examples/Containerfile.app_final`
+
 [source,bash,role="execute",subs=attributes+]
 ----
 nano Containerfile
 ----
 
-Find the following block in the current Containerfile and replace it with the new block that follows:
+First, find the following block in the current Containerfile and replace it with the new block that follows:
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 # Copy the Flask application files and Gunicorn service file
@@ -317,18 +320,18 @@ COPY etc/ /etc
 RUN pip3 install -r /app/requirements.txt
 ----
 
-TIP: If you want a reference, there's a sample for the final layout of the Containerfile in `~/examples/Containerfile.app_final`
-
 To manage the firewall during a container build, we'll use a purpose built tool provided as part of `firewalld`.
 The `firewall-cmd` uses DBUS to make changes and in a container build, DBUS isn't running.
 The offline version will create permanent changes to the firewalld configuration without the use of DBUS.
 You may find there are other "offline" versions of tools that typically interact with DBUS or systemd available.
+
+Add this line after the `pip3 install` line
 [source,dockerfile,role="execute",subs=attributes+]
 ----
 RUN firewall-offline-cmd -s http
 ----
 
-Finally, remove the `heredoc` near the end of the file we created for testing the `nginx` workaround. 
+Finally, remove the `heredoc` near the end of the file we created for testing the `nginx` workaround and save the file.
 The new configuration file you just created will serve the same purpose.
 
 Now you're ready to build and push this version of the application.

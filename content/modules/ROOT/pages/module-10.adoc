@@ -98,7 +98,7 @@ From an output perspective, a switch looks the same as an update. There's a new 
 
 [source,bash,role="execute",subs=attributes+]
 ----
-bootc status -v
+bootc status 
 ----
 ....
   Staged image: registry-bcsvm.apps.ocpvdev01.rhdp.net/app-test
@@ -110,7 +110,6 @@ bootc status -v
        Version: 9.6 (2025-09-08 18:56:51.120175635 UTC)
 ....
 
-Since this is a major change that includes a different kernel among other things, notice that the option to soft reboot here is blocked.
 Issue a full reboot to finalize the switch, making sure you're on the right host.
 
 [source,bash,role="execute",subs=attributes+]
@@ -165,6 +164,8 @@ The introduction of image mode has put some pressure on this migration, but you 
 Let's use the upstream fix to create a local version of nginx.tmpfiles in the system location. 
 This means when the new RPM lands, we can just remove this from our Containerfile and the system will continue to work as expected.
 
+Switch to the tab labeled Build host.
+
 Let's add a `heredoc` just before the linter in the Containerfile to create the new file for testing.
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -207,6 +208,9 @@ And of course push it to the local registry:
 podman push registry-{guid}.{domain}/app-test:v2
 ----
 
+=== Testing the workaround
+Change to the tab labeled "Test image mode host".
+
 Let's use the `--apply` flag and immediately execute the reboot instead of checking the status first.
 [source,bash,role="execute",subs=attributes+]
 ----
@@ -230,6 +234,12 @@ Nov 17 17:03:34 imrhel systemd[1]: Started nginx.service - The nginx HTTP and re
 ----
 systemctl status info-app.service --no-pager
 ----
+....
+Nov 17 17:03:49 localhost.localdomain systemd[1]: Started info-app.service - Host information services.
+Nov 17 17:03:49 imrhel gunicorn[958]: [2025-11-26 23:09:49 +0000] [958] [INFO] Starting gunicorn 23.0.0
+Nov 17 17:03:49 imrhel gunicorn[958]: [2025-11-26 23:09:49 +0000] [958] [INFO] Listening at: unix:/…k (958)
+Nov 17 17:03:49 imrhel gunicorn[958]: [2025-11-26 23:09:49 +0000] [958] [INFO] Using worker: sync
+....
 As a final sanity check, is the app http://app-{guid}.{domain}/[up and running?,window=_blank]
 
 The host details page is up and running on the test host. With that solved, we can start on migrating the app from the Red Hat base to our corporate baseline.
